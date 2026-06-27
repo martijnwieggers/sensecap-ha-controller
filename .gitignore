@@ -1,0 +1,23 @@
+# PlatformIO
+firmware/.pio/
+firmware/.vscode/
+
+# CMake / Simulator build
+simulator/build/
+simulator/_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Editors
+.vscode/settings.json
+*.suo
+*.user
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Simulator config (bevat lokale HA-instellingen)
+simulator/config.ini

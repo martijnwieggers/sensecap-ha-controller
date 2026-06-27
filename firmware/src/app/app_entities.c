@@ -1,0 +1,53 @@
+#include "app_entities.h"
+#include <string.h>
+#include <stdio.h>
+
+entity_domain_t entities_parse_domain(const char *entity_id) {
+    if (strncmp(entity_id, "switch.",        7)  == 0) return DOMAIN_SWITCH;
+    if (strncmp(entity_id, "light.",         6)  == 0) return DOMAIN_LIGHT;
+    if (strncmp(entity_id, "climate.",       8)  == 0) return DOMAIN_CLIMATE;
+    if (strncmp(entity_id, "sensor.",        7)  == 0) return DOMAIN_SENSOR;
+    if (strncmp(entity_id, "binary_sensor.", 14) == 0) return DOMAIN_BINARY_SENSOR;
+    if (strncmp(entity_id, "input_boolean.", 14) == 0) return DOMAIN_INPUT_BOOLEAN;
+    return DOMAIN_UNKNOWN;
+}
+
+widget_type_t entities_resolve_widget(const entity_t *e) {
+    switch (e->domain) {
+        case DOMAIN_SWITCH:
+        case DOMAIN_INPUT_BOOLEAN:
+            return WIDGET_TOGGLE;
+        case DOMAIN_LIGHT:
+            return (e->brightness_pct >= 0.0f) ? WIDGET_SLIDER_BRIGHTNESS
+                                                : WIDGET_TOGGLE;
+        case DOMAIN_CLIMATE:
+            return WIDGET_SLIDER_TEMPERATURE;
+        case DOMAIN_SENSOR:
+        case DOMAIN_BINARY_SENSOR:
+        default:
+            return WIDGET_LABEL;
+    }
+}
+
+void entities_build_pages(view_model_t *vm, entity_t *arr, int count) {
+    if (count > MAX_ENTITIES) count = MAX_ENTITIES;
+    vm->total_entities = count;
+    vm->page_count     = (count + ENTITIES_PER_PAGE - 1) / ENTITIES_PER_PAGE;
+
+    for (int i = 0; i < count; i++) {
+        int page = i / ENTITIES_PER_PAGE;
+        int slot = i % ENTITIES_PER_PAGE;
+        vm->pages[page].entities[slot] = &arr[i];
+        vm->pages[page].count = slot + 1;
+    }
+}
+
+entity_t *entities_find(view_model_t *vm, const char *entity_id) {
+    for (int p = 0; p < vm->page_count; p++) {
+        for (int s = 0; s < vm->pages[p].count; s++) {
+            entity_t *e = vm->pages[p].entities[s];
+            if (e && strcmp(e->entity_id, entity_id) == 0) return e;
+        }
+    }
+    return NULL;
+}
