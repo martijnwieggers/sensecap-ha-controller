@@ -17,9 +17,8 @@
 #define LV_MEM_SIZE   (512 * 1024U)   /* 512 KB voor simulator */
 
 /* ─── HAL tick ───────────────────────────────────────────────────────────── */
-#define LV_TICK_CUSTOM 1
-#define LV_TICK_CUSTOM_INCLUDE  "mock/mock_system.h"
-#define LV_TICK_CUSTOM_SYS_TIME_EXPR  mock_tick_get()
+/* Tick wordt handmatig aangeroepen via lv_tick_inc(5) in de hoofdlus */
+#define LV_TICK_CUSTOM 0
 
 /* ─── Logging ────────────────────────────────────────────────────────────── */
 #define LV_USE_LOG 1

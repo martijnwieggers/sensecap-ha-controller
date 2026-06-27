@@ -1,6 +1,5 @@
 #include "lvgl.h"
-#include "lv_drivers/display/monitor.h"
-#include "lv_drivers/indev/mouse.h"
+#include "sdl/sdl.h"
 
 #include "mock/mock_storage.h"
 #include "mock/mock_system.h"
@@ -13,9 +12,6 @@
 
 #include <stdio.h>
 #include <SDL2/SDL.h>
-
-/* Gedeeld met firmware/src — zelfde type, gesimuleerde implementatie */
-#include "app/app_events.h"
 
 /* Eenvoudige queue-simulatie voor de pc (geen FreeRTOS) */
 #define EVT_QUEUE_SIZE 32
@@ -51,25 +47,26 @@ int main(int argc, char *argv[]) {
     /* LVGL initialiseren */
     lv_init();
 
-    /* SDL2 display driver (480x480 venster) */
-    monitor_init();
-    lv_disp_drv_t disp_drv;
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.flush_cb = monitor_flush;
-    disp_drv.hor_res  = 480;
-    disp_drv.ver_res  = 480;
+    /* SDL2 display + muis via lv_drivers SDL-driver */
+    sdl_init();
+
     static lv_disp_draw_buf_t draw_buf;
-    static lv_color_t buf[480 * 10];
-    lv_disp_draw_buf_init(&draw_buf, buf, NULL, 480 * 10);
-    disp_drv.draw_buf = &draw_buf;
+    static lv_color_t buf1[480 * 20];
+    static lv_color_t buf2[480 * 20];
+    lv_disp_draw_buf_init(&draw_buf, buf1, buf2, 480 * 20);
+
+    static lv_disp_drv_t disp_drv;
+    lv_disp_drv_init(&disp_drv);
+    disp_drv.draw_buf   = &draw_buf;
+    disp_drv.flush_cb   = sdl_display_flush;
+    disp_drv.hor_res    = 480;
+    disp_drv.ver_res    = 480;
     lv_disp_drv_register(&disp_drv);
 
-    /* Muis als touch-invoer */
-    mouse_init();
-    lv_indev_drv_t indev_drv;
+    static lv_indev_drv_t indev_drv;
     lv_indev_drv_init(&indev_drv);
     indev_drv.type    = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = mouse_read;
+    indev_drv.read_cb = sdl_mouse_read;
     lv_indev_drv_register(&indev_drv);
 
     /* Applicatielaag opstarten */
@@ -95,6 +92,7 @@ int main(int argc, char *argv[]) {
             app_events_handle(&evt);
         }
 
+        lv_tick_inc(5);
         lv_timer_handler();
         SDL_Delay(5);
     }

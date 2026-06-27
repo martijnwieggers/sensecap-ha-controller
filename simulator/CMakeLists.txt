@@ -28,9 +28,14 @@ target_compile_definitions(lvgl PUBLIC
 )
 target_compile_definitions(lv_drivers PUBLIC
     LV_CONF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h
-    USE_MONITOR=1
-    USE_MOUSE=1
+    LV_DRV_CONF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/lv_drv_conf.h
+    USE_SDL=1
 )
+# lv_drivers moet lv_drv_conf.h en SDL2 kunnen vinden
+target_include_directories(lv_drivers PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(lv_drivers PUBLIC SDL2::SDL2)
 
 # ─── Gedeelde firmware bronbestanden (app/ en ui/) ────────────────────────────
 set(FIRMWARE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../firmware/src)
@@ -57,10 +62,17 @@ set(SIM_SOURCES
 
 add_executable(sensecap_sim ${SHARED_SOURCES} ${SIM_SOURCES})
 
+target_compile_definitions(sensecap_sim PRIVATE
+    APP_VERSION="0.1.0-sim"
+    SIMULATOR=1
+)
+
 target_include_directories(sensecap_sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}            # lv_conf.h
     ${FIRMWARE_SRC}                        # gedeelde headers
     ${CMAKE_CURRENT_SOURCE_DIR}/mock       # mock headers
+    ${CMAKE_CURRENT_SOURCE_DIR}/stubs      # ESP-IDF / FreeRTOS stubs
+    ${lv_drivers_SOURCE_DIR}               # sdl/sdl.h
 )
 
 target_link_libraries(sensecap_sim

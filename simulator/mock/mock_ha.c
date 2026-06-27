@@ -1,4 +1,5 @@
 #include "mock_ha.h"
+#include "../../firmware/src/ha/ha_client.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +88,35 @@ void mock_ha_start(void (*send_fn)(const ha_event_t *)) {
 
     /* Start periodieke simulator-timer (elke 5 seconden) */
     SDL_AddTimer(5000, timer_cb, NULL);
+}
+
+/* ─── ha_client stubs — delegeren naar mock_ha_handle_cmd ─────────────────── */
+void ha_client_run(void) { /* niet gebruikt in simulator */ }
+
+void ha_client_toggle(const char *entity_id) {
+    ha_cmd_t cmd = {.type = CMD_TOGGLE_ENTITY};
+    strncpy(cmd.entity_id, entity_id, sizeof(cmd.entity_id) - 1);
+    mock_ha_handle_cmd(&cmd);
+}
+
+void ha_client_set_brightness(const char *entity_id, float pct) {
+    ha_cmd_t cmd = {.type = CMD_SET_BRIGHTNESS, .value = pct};
+    strncpy(cmd.entity_id, entity_id, sizeof(cmd.entity_id) - 1);
+    mock_ha_handle_cmd(&cmd);
+}
+
+void ha_client_set_temperature(const char *entity_id, float temp) {
+    ha_cmd_t cmd = {.type = CMD_SET_TEMPERATURE, .value = temp};
+    strncpy(cmd.entity_id, entity_id, sizeof(cmd.entity_id) - 1);
+    mock_ha_handle_cmd(&cmd);
+}
+
+void ha_client_load_view(const char *view_path) {
+    printf("[mock_ha] load_view: %s\n", view_path);
+}
+
+void ha_client_get_views(void) {
+    printf("[mock_ha] get_views (stub)\n");
 }
 
 void mock_ha_handle_cmd(const ha_cmd_t *cmd) {
