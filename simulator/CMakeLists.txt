@@ -58,6 +58,8 @@ set(SIM_SOURCES
     mock/mock_storage.c
     mock/mock_system.c
     mock/mock_ha.c
+    mock/mock_wifi.c
+    mock/mock_web_config.c
 )
 
 add_executable(sensecap_sim ${SHARED_SOURCES} ${SIM_SOURCES})
@@ -80,6 +82,7 @@ target_link_libraries(sensecap_sim
     lv_drivers
     SDL2::SDL2
     SDL2::SDL2main
+    $<$<PLATFORM_ID:Windows>:ws2_32>
 )
 
 # Windows: kopieer SDL2.dll naast het executable

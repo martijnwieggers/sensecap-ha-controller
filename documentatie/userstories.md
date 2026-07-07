@@ -22,6 +22,7 @@
 | US-008  | Realtime updates ontvangen vanuit HA   | Must have  |
 | US-009  | Verbindingsfout tonen en herstellen    | Must have  |
 | US-010  | Statuspagina bekijken                  | Should have|
+| US-011  | Airco bedienen: mode en ventilatie     | Should have|
 
 ---
 
@@ -239,12 +240,12 @@ Scripts, scenes en button-entiteiten worden weergegeven als grote, duidelijke kn
 
 ### Acceptatiecriteria
 
-- [ ] Scripts worden weergegeven als knoppen met de naam van het script.
-- [ ] Scenes worden weergegeven als knoppen met de naam van de scene.
-- [ ] Button-entiteiten gedragen zich als directe actieknoppen.
-- [ ] Na aanraking geeft de knop visuele feedback (minimaal 300 ms kleurwijziging).
-- [ ] Het commando wordt maximaal één keer per tik verstuurd (geen dubbelklik-probleem).
-- [ ] De knop toont een laad-indicator als HA langer dan 500 ms nodig heeft om te reageren.
+- [x] Scripts worden weergegeven als knoppen met de naam van het script.
+- [x] Scenes worden weergegeven als knoppen met de naam van de scene.
+- [x] Button-entiteiten gedragen zich als directe actieknoppen.
+- [x] Na aanraking geeft de knop visuele feedback (minimaal 300 ms kleurwijziging).
+- [x] Het commando wordt maximaal één keer per tik verstuurd (geen dubbelklik-probleem).
+- [x] De knop toont een laad-indicator als HA langer dan 500 ms nodig heeft om te reageren.
 
 ### Technische opmerkingen
 
@@ -265,11 +266,11 @@ Na het ophalen van de initiële staat subscribet de app op `state_changed`-event
 
 ### Acceptatiecriteria
 
-- [ ] De app ontvangt `state_changed`-events via een actieve WebSocket-subscription.
-- [ ] UI-componenten worden bijgewerkt binnen 500 ms na ontvangst van een event.
-- [ ] Schakelaarstatus, sliderwaarden en sensorwaarden worden allemaal realtime bijgewerkt.
-- [ ] Updates veroorzaken geen volledige herlaad van de view (alleen het gewijzigde element wordt bijgewerkt).
-- [ ] Bij herverbinding na verbindingsverlies worden alle entiteitsstatussen opnieuw opgehaald via `get_states`.
+- [x] De app ontvangt `state_changed`-events via een actieve WebSocket-subscription.
+- [x] UI-componenten worden bijgewerkt binnen 500 ms na ontvangst van een event.
+- [x] Schakelaarstatus, sliderwaarden en sensorwaarden worden allemaal realtime bijgewerkt.
+- [x] Updates veroorzaken geen volledige herlaad van de view (alleen het gewijzigde element wordt bijgewerkt).
+- [x] Bij herverbinding na verbindingsverlies worden alle entiteitsstatussen opnieuw opgehaald via `get_states`.
 
 ### Technische opmerkingen
 
@@ -332,6 +333,33 @@ De app heeft naast de HA-viewpagina en het selectiemenu ook een statuspagina. De
 - Uptime via `esp_timer_get_time()` (ESP-IDF) of `millis()` (Arduino).
 - WiFi RSSI via `WiFi.RSSI()`.
 - IP-adres via `WiFi.localIP()`.
+
+---
+
+## US-011 — Airco bedienen: mode en ventilatiesnelheid
+
+**Als** gebruiker van het apparaat
+**wil ik** van een climate-entiteit (airco) naast de doeltemperatuur ook de HVAC-mode en de ventilatiesnelheid kunnen instellen
+**zodat** ik de airco volledig vanaf het scherm kan bedienen zonder de Home Assistant-app te openen.
+
+### Gedetailleerde beschrijving
+
+Een airco is in Home Assistant een `climate.*`-entiteit. De HVAC-mode (bijv. `off`, `cool`, `heat`, `dry`, `fan_only`) is de *state* van de entiteit; de beschikbare modes staan in het attribuut `hvac_modes`. De ventilatiesnelheid staat in het attribuut `fan_mode` met de beschikbare standen in `fan_modes` (bijv. `auto`, `low`, `medium`, `high`). De climate-rij toont naast de temperatuur-slider twee compacte cycle-knoppen die de huidige waarde tonen; een tik springt naar de volgende stand uit de lijst. Instellen gaat via de services `climate.set_hvac_mode` en `climate.set_fan_mode`.
+
+### Acceptatiecriteria
+
+- [x] Een climate-rij toont twee cycle-knoppen: HVAC-mode en ventilatiesnelheid, naast de temperatuur-slider.
+- [x] Een tik op de mode-knop schakelt naar de volgende mode uit `hvac_modes` via `climate.set_hvac_mode`.
+- [x] Een tik op de fan-knop schakelt naar de volgende stand uit `fan_modes` via `climate.set_fan_mode`.
+- [x] De knoppen tonen altijd de actuele waarde, ook na een wijziging vanuit HA zelf (realtime update).
+- [x] `hvac_modes`, `fan_modes` en `fan_mode` worden geparsed uit de `get_states`- en `state_changed`-berichten.
+- [x] Een climate-entiteit zonder `fan_modes` toont een neutrale fan-knop die niets doet.
+
+### Technische opmerkingen
+
+- Services: `climate.set_hvac_mode` (param `hvac_mode`) en `climate.set_fan_mode` (param `fan_mode`) — string-parameters, vereist uitbreiding van `ha_messages_call_service`.
+- `entity_t` uitbreiden met `fan_mode`, `fan_modes[]` en `hvac_modes[]`; events dragen deze mee.
+- Standaard fan modes in HA: `on`, `off`, `auto`, `low`, `medium`, `high`, `middle`, `focus`, `diffuse`; integraties mogen eigen waarden toevoegen — de lijst dus altijd uit het attribuut lezen, nooit hardcoden.
 
 ---
 

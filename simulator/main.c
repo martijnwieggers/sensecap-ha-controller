@@ -76,16 +76,12 @@ int main(int argc, char *argv[]) {
     /* Mock HA: start achtergrond event-generator */
     mock_ha_start(sim_queue_send);
 
-    /* Hoofdlus */
+    /* Hoofdlus.
+       SDL-events (muis, toetsenbord, quit) worden verwerkt door de LVGL-timer
+       die sdl_init() registreert (sdl_event_handler, elke 10 ms).
+       De hoofdlus mag SDL_PollEvent NIET aanroepen — dat leegt de queue
+       voordat sdl_event_handler mouse_handler() kan aanroepen. */
     while (1) {
-        SDL_Event sdl_evt;
-        while (SDL_PollEvent(&sdl_evt)) {
-            if (sdl_evt.type == SDL_QUIT) {
-                printf("Simulator afgesloten.\n");
-                return 0;
-            }
-        }
-
         /* HA-events doorgeven aan UI */
         ha_event_t evt;
         while (sim_queue_recv(&evt)) {
@@ -93,7 +89,7 @@ int main(int argc, char *argv[]) {
         }
 
         lv_tick_inc(5);
-        lv_timer_handler();
+        lv_timer_handler();  /* roept ook sdl_event_handler aan (muis + quit) */
         SDL_Delay(5);
     }
     return 0;

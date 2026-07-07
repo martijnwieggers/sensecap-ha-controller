@@ -6,6 +6,7 @@
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include <stdio.h>
+#include <inttypes.h>
 
 static lv_obj_t *s_lbl_wifi   = NULL;
 static lv_obj_t *s_lbl_ip     = NULL;
@@ -29,7 +30,9 @@ static void refresh_cb(lv_timer_t *timer) {
     uint32_t s_total = (uint32_t)(us / 1000000ULL);
     uint32_t d = s_total / 86400, h = (s_total % 86400) / 3600;
     uint32_t m = (s_total % 3600) / 60, s2 = s_total % 60;
-    snprintf(buf, sizeof(buf), "Uptime: %ud %uh %um %us", d, h, m, s2);
+    snprintf(buf, sizeof(buf),
+             "Uptime: %" PRIu32 "d %" PRIu32 "h %" PRIu32 "m %" PRIu32 "s",
+             d, h, m, s2);
     lv_label_set_text(s_lbl_uptime, buf);
 
     /* HA status */

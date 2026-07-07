@@ -9,6 +9,10 @@ entity_domain_t entities_parse_domain(const char *entity_id) {
     if (strncmp(entity_id, "sensor.",        7)  == 0) return DOMAIN_SENSOR;
     if (strncmp(entity_id, "binary_sensor.", 14) == 0) return DOMAIN_BINARY_SENSOR;
     if (strncmp(entity_id, "input_boolean.", 14) == 0) return DOMAIN_INPUT_BOOLEAN;
+    if (strncmp(entity_id, "script.",        7)  == 0) return DOMAIN_SCRIPT;
+    if (strncmp(entity_id, "scene.",         6)  == 0) return DOMAIN_SCENE;
+    if (strncmp(entity_id, "button.",        7)  == 0) return DOMAIN_BUTTON;
+    if (strncmp(entity_id, "automation.",   11)  == 0) return DOMAIN_AUTOMATION;
     return DOMAIN_UNKNOWN;
 }
 
@@ -16,12 +20,17 @@ widget_type_t entities_resolve_widget(const entity_t *e) {
     switch (e->domain) {
         case DOMAIN_SWITCH:
         case DOMAIN_INPUT_BOOLEAN:
+        case DOMAIN_AUTOMATION:
             return WIDGET_TOGGLE;
         case DOMAIN_LIGHT:
             return (e->brightness_pct >= 0.0f) ? WIDGET_SLIDER_BRIGHTNESS
                                                 : WIDGET_TOGGLE;
         case DOMAIN_CLIMATE:
-            return WIDGET_SLIDER_TEMPERATURE;
+            return WIDGET_CLIMATE;
+        case DOMAIN_SCRIPT:
+        case DOMAIN_SCENE:
+        case DOMAIN_BUTTON:
+            return WIDGET_BUTTON;
         case DOMAIN_SENSOR:
         case DOMAIN_BINARY_SENSOR:
         default:

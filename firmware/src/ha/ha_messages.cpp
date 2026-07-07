@@ -1,12 +1,17 @@
 #include "ha_messages.h"
+#include "ha_lovelace.h"
 #include "../app/app_events.h"
+#include "../app/app_entities.h"
 #include "../platform/storage.h"
 #include "ArduinoJson.h"
 #include "esp_log.h"
 #include <string.h>
 
-extern QueueHandle_t ha_event_queue;
+extern "C" QueueHandle_t ha_event_queue;
 static const char *TAG = "ha_messages";
+
+/* Id van het lopende get_states-request, -1 als er geen loopt */
+static int s_get_states_id = -1;
 
 static void send_json(esp_websocket_client_handle_t client, const char *json) {
     esp_websocket_client_send_text(client, json, strlen(json), pdMS_TO_TICKS(2000));
@@ -31,9 +36,71 @@ void ha_messages_subscribe_events(esp_websocket_client_handle_t client,
 
 void ha_messages_get_states(esp_websocket_client_handle_t client,
                             int *msg_id) {
+    s_get_states_id = *msg_id;
     char buf[64];
     snprintf(buf, sizeof(buf), "{\"id\":%d,\"type\":\"get_states\"}", (*msg_id)++);
     send_json(client, buf);
+}
+
+/* Vul mode-lijst (hvac_modes / fan_modes) uit een JSON-array (US-011) */
+static void copy_mode_list(JsonVariant arr, char dst[][MODE_STR_LEN], int *count) {
+    *count = 0;
+    for (JsonVariant v : arr.as<JsonArray>()) {
+        if (*count >= MAX_MODES) break;
+        const char *s = v.as<const char *>();
+        if (!s) continue;
+        strncpy(dst[*count], s, MODE_STR_LEN - 1);
+        dst[*count][MODE_STR_LEN - 1] = '\0';
+        (*count)++;
+    }
+}
+
+/* Gedeelde attribuut-parsing voor state_changed-events en get_states */
+static void parse_state_attrs(JsonVariant attrs, ha_event_t *evt) {
+    if (attrs["brightness"].is<float>()) {
+        evt->brightness_pct = attrs["brightness"].as<float>() / 2.55f;
+    }
+    if (attrs["temperature"].is<float>()) {
+        evt->temperature = attrs["temperature"].as<float>();
+    }
+    /* Climate (US-011) */
+    const char *fan = attrs["fan_mode"].as<const char *>();
+    if (fan) {
+        strncpy(evt->fan_mode, fan, sizeof(evt->fan_mode) - 1);
+    }
+    if (attrs["fan_modes"].is<JsonArray>()) {
+        copy_mode_list(attrs["fan_modes"], evt->fan_modes, &evt->fan_mode_count);
+    }
+    if (attrs["hvac_modes"].is<JsonArray>()) {
+        copy_mode_list(attrs["hvac_modes"], evt->hvac_modes, &evt->hvac_mode_count);
+    }
+}
+
+/* get_states-antwoord: alle entiteiten in de actieve view als
+   STATE_CHANGED doorzetten naar de UI (US-008: refresh na herverbinding).
+   Entiteiten buiten de actieve view worden genegeerd. */
+static void handle_states_result(JsonDocument &doc) {
+    view_model_t *vm = ha_lovelace_get_view_model();
+    if (!vm || vm->total_entities == 0) return;
+
+    int updated = 0;
+    for (JsonObject st : doc["result"].as<JsonArray>()) {
+        const char *entity_id = st["entity_id"];
+        const char *state     = st["state"];
+        if (!entity_id || !state) continue;
+        if (!entities_find(vm, entity_id)) continue;
+
+        ha_event_t evt = {.type = HA_EVT_STATE_CHANGED,
+                          .brightness_pct = -1, .temperature = -1};
+        strncpy(evt.entity_id, entity_id, sizeof(evt.entity_id) - 1);
+        strncpy(evt.state,     state,     sizeof(evt.state) - 1);
+
+        parse_state_attrs(st["attributes"], &evt);
+        /* Burst kan groter zijn dan de queue-diepte: korte timeout als backpressure */
+        xQueueSend(ha_event_queue, &evt, pdMS_TO_TICKS(100));
+        updated++;
+    }
+    ESP_LOGI(TAG, "get_states: %d entiteiten in actieve view ververst", updated);
 }
 
 void ha_messages_call_service(esp_websocket_client_handle_t client,
@@ -73,6 +140,28 @@ void ha_messages_call_service(esp_websocket_client_handle_t client,
     send_json(client, buf);
 }
 
+void ha_messages_call_service_str(esp_websocket_client_handle_t client,
+                                  int *msg_id,
+                                  const char *entity_id,
+                                  const char *service,
+                                  const char *data_key,
+                                  const char *data_value) {
+    char buf[256];
+    char domain[32];
+
+    const char *dot = strchr(entity_id, '.');
+    size_t dlen = dot ? (size_t)(dot - entity_id) : sizeof(domain) - 1;
+    strncpy(domain, entity_id, dlen);
+    domain[dlen] = '\0';
+
+    snprintf(buf, sizeof(buf),
+             "{\"id\":%d,\"type\":\"call_service\",\"domain\":\"%s\","
+             "\"service\":\"%s\",\"target\":{\"entity_id\":\"%s\"},"
+             "\"service_data\":{\"%s\":\"%s\"}}",
+             (*msg_id)++, domain, service, entity_id, data_key, data_value);
+    send_json(client, buf);
+}
+
 void ha_messages_handle(esp_websocket_client_handle_t client,
                         const char *data, int len, int *msg_id) {
     JsonDocument doc;
@@ -100,6 +189,20 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
     } else if (strcmp(type, "auth_invalid") == 0) {
         ESP_LOGE(TAG, "HA authenticatie mislukt — controleer token");
 
+    } else if (strcmp(type, "result") == 0) {
+        int  id      = doc["id"].as<int>();
+        bool success = doc["success"].as<bool>();
+        if (!success) {
+            ESP_LOGW(TAG, "Request %d mislukt", id);
+            return;
+        }
+        if (id == s_get_states_id) {
+            s_get_states_id = -1;
+            handle_states_result(doc);
+            return;
+        }
+        ha_lovelace_handle_result(id, data, len);
+
     } else if (strcmp(type, "event") == 0) {
         const char *entity_id = doc["event"]["data"]["entity_id"];
         const char *new_state = doc["event"]["data"]["new_state"]["state"];
@@ -110,13 +213,7 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
         strncpy(evt.entity_id, entity_id, sizeof(evt.entity_id) - 1);
         strncpy(evt.state,     new_state, sizeof(evt.state) - 1);
 
-        JsonVariant attrs = doc["event"]["data"]["new_state"]["attributes"];
-        if (attrs.containsKey("brightness")) {
-            evt.brightness_pct = attrs["brightness"].as<float>() / 2.55f;
-        }
-        if (attrs.containsKey("temperature")) {
-            evt.temperature = attrs["temperature"].as<float>();
-        }
+        parse_state_attrs(doc["event"]["data"]["new_state"]["attributes"], &evt);
         xQueueSend(ha_event_queue, &evt, 0);
     }
 }

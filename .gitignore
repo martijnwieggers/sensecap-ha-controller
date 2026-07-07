@@ -1,6 +1,10 @@
 # PlatformIO
 firmware/.pio/
 firmware/.vscode/
+# gegenereerd uit sdkconfig.defaults
+firmware/sdkconfig.sensecap_indicator
+firmware/dependencies.lock
+firmware/managed_components/
 
 # CMake / Simulator build
 simulator/build/

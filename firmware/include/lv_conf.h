@@ -1,3 +1,9 @@
+/* LVGL-configuratie voor de SenseCap Indicator firmware.
+   Gespiegeld aan simulator/lv_conf.h — verschillen:
+   - kleurdiepte 16 (RGB565, ST7701S) i.p.v. 32 (SDL)
+   - geheugen via malloc (PSRAM) i.p.v. statische pool
+   - tick via esp_timer i.p.v. handmatige lv_tick_inc */
+
 #if 1  /* Schakel dit blok in (1) of uit (0) */
 
 #ifndef LV_CONF_H
@@ -6,26 +12,31 @@
 #include <stdint.h>
 
 /* ─── Kleurdiepte ────────────────────────────────────────────────────────── */
-#define LV_COLOR_DEPTH 32      /* 32-bit op pc (SDL2); apparaat gebruikt 16 */
+#define LV_COLOR_DEPTH 16      /* RGB565 voor ST7701S RGB-panel */
 
 /* ─── Schermresolutie ────────────────────────────────────────────────────── */
 #define LV_HOR_RES_MAX 480
 #define LV_VER_RES_MAX 480
 
 /* ─── Geheugen ───────────────────────────────────────────────────────────── */
-#define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE   (512 * 1024U)   /* 512 KB voor simulator */
+/* malloc/free — met CONFIG_SPIRAM_USE_MALLOC landen grote allocaties in PSRAM */
+#define LV_MEM_CUSTOM 1
+#define LV_MEM_CUSTOM_INCLUDE <stdlib.h>
+#define LV_MEM_CUSTOM_ALLOC   malloc
+#define LV_MEM_CUSTOM_FREE    free
+#define LV_MEM_CUSTOM_REALLOC realloc
 
 /* ─── HAL tick ───────────────────────────────────────────────────────────── */
-/* Tick wordt handmatig aangeroepen via lv_tick_inc(5) in de hoofdlus */
-#define LV_TICK_CUSTOM 0
+#define LV_TICK_CUSTOM 1
+#define LV_TICK_CUSTOM_INCLUDE "esp_timer.h"
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR ((uint32_t)(esp_timer_get_time() / 1000))
 
 /* ─── Logging ────────────────────────────────────────────────────────────── */
 #define LV_USE_LOG 1
-#define LV_LOG_LEVEL LV_LOG_LEVEL_INFO
+#define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
 #define LV_LOG_PRINTF 1
 
-/* ─── Widgets inschakelen ────────────────────────────────────────────────── */
+/* ─── Widgets inschakelen (identiek aan simulator) ───────────────────────── */
 #define LV_USE_ARC        1
 #define LV_USE_BAR        1
 #define LV_USE_BTN        1

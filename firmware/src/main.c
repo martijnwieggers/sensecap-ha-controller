@@ -3,10 +3,12 @@
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "lvgl.h"
 
 #include "platform/display.h"
 #include "platform/touch.h"
 #include "platform/storage.h"
+#include "platform/wifi.h"
 #include "app/app_state.h"
 #include "app/app_entities.h"
 #include "app/app_events.h"
@@ -43,6 +45,7 @@ static void task_ha_ws(void *arg) {
 void app_main(void) {
     storage_init();
     app_state_init();
+    wifi_init();
 
     ha_event_queue = xQueueCreate(16, sizeof(ha_event_t));
     cmd_queue      = xQueueCreate(8,  sizeof(ha_cmd_t));
