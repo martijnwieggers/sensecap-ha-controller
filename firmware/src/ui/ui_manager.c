@@ -81,12 +81,13 @@ void ui_manager_show_entities(void) {
 
 void ui_manager_show_status(void) {
     if (!s_screen_status) s_screen_status = ui_status_create();
+    ui_status_refresh();   /* direct actuele waarden + evt. foutmelding */
     load_screen(s_screen_status, ANIM_FWD);
 }
 
 void ui_manager_show_disconnected(void) {
-    /* Geen HA-verbinding: toon de statuspagina zodat de gebruiker de
-       verbindingsstatus ziet (HA: Verbroken in rood). */
+    /* Geen HA-verbinding: toon de statuspagina met foutmelding en
+       herstel-indicator (US-009). */
     ui_manager_show_status();
 }
 

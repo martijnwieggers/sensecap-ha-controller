@@ -292,13 +292,13 @@ Als de WebSocket-verbinding verbroken wordt (netwerk weggevallen, HA herstart, t
 
 ### Acceptatiecriteria
 
-- [ ] Bij verbindingsverlies verschijnt binnen 3 seconden een duidelijke foutmelding op het scherm.
-- [ ] De foutmelding toont minimaal: "Verbinding verbroken" en een indicator dat er geprobeerd wordt te herstellen.
-- [ ] De app probeert automatisch opnieuw verbinding te maken met exponentiële back-off (5 s → 10 s → 20 s → max. 60 s).
-- [ ] Na succesvolle herverbinding worden alle entiteitsstatussen opnieuw opgehaald.
-- [ ] Na herverbinding verdwijnt de foutmelding en is de app direct bruikbaar.
-- [ ] De app onderscheidt WiFi-problemen van HA-problemen en toont een passende melding.
-- [ ] Het apparaat herverbindt ook na een HA-herstart zonder handmatige interventie.
+- [x] Bij verbindingsverlies verschijnt binnen 3 seconden een duidelijke foutmelding op het scherm.
+- [x] De foutmelding toont minimaal: "Verbinding verbroken" en een indicator dat er geprobeerd wordt te herstellen.
+- [x] De app probeert automatisch opnieuw verbinding te maken met exponentiële back-off (5 s → 10 s → 20 s → max. 60 s).
+- [x] Na succesvolle herverbinding worden alle entiteitsstatussen opnieuw opgehaald.
+- [x] Na herverbinding verdwijnt de foutmelding en is de app direct bruikbaar.
+- [x] De app onderscheidt WiFi-problemen van HA-problemen en toont een passende melding.
+- [x] Het apparaat herverbindt ook na een HA-herstart zonder handmatige interventie.
 
 ### Technische opmerkingen
 
@@ -320,13 +320,13 @@ De app heeft naast de HA-viewpagina en het selectiemenu ook een statuspagina. De
 
 ### Acceptatiecriteria
 
-- [ ] De statuspagina is bereikbaar via één tik vanuit het navigatiemenu.
-- [ ] De pagina toont: WiFi-SSID, signaalsterkte (dBm of balkjes), IP-adres, HA-verbindingsstatus, firmware-versie, uptime en actieve view-naam.
-- [ ] WiFi-signaalsterkte wordt visueel weergegeven (bijv. 0–4 balkjes).
-- [ ] HA-verbindingsstatus toont "Verbonden" (groen) of "Verbroken" (rood).
-- [ ] Uptime wordt weergegeven in leesbaar formaat (bijv. "2d 4u 12m").
-- [ ] Vanuit de statuspagina is de configuratiepagina bereikbaar via een knop "Instellingen".
-- [ ] De statuspagina ververst de getoonde waarden automatisch elke 5 seconden.
+- [x] De statuspagina is bereikbaar via één tik vanuit het navigatiemenu.
+- [x] De pagina toont: WiFi-SSID, signaalsterkte (dBm of balkjes), IP-adres, HA-verbindingsstatus, firmware-versie, uptime en actieve view-naam.
+- [x] WiFi-signaalsterkte wordt visueel weergegeven (bijv. 0–4 balkjes).
+- [x] HA-verbindingsstatus toont "Verbonden" (groen) of "Verbroken" (rood).
+- [x] Uptime wordt weergegeven in leesbaar formaat (bijv. "2d 4u 12m").
+- [x] Vanuit de statuspagina is de configuratiepagina bereikbaar via een knop "Instellingen".
+- [x] De statuspagina ververst de getoonde waarden automatisch elke 5 seconden.
 
 ### Technische opmerkingen
 

@@ -239,7 +239,12 @@ static Uint32 connect_delay_cb(Uint32 interval, void *param) {
     return 0; /* one-shot: return 0 stopt de timer */
 }
 
-/* Simuleert 'HA niet gevonden': na de connect-timeout een DISCONNECTED-event */
+/* Simuleert 'HA niet gevonden': na de connect-timeout een DISCONNECTED-event.
+   Na 8 s 'komt HA weer online' zodat het herstel-scenario (US-009)
+   end-to-end te testen is. */
+static Uint32 connect_delay_cb(Uint32 interval, void *param);
+static Uint32 timer_cb(Uint32 interval, void *param);
+
 static Uint32 connect_fail_cb(Uint32 interval, void *param) {
     (void)interval; (void)param;
     printf("[mock_ha] HA niet bereikbaar (gesimuleerd) → HA_EVT_DISCONNECTED\n");
@@ -247,6 +252,9 @@ static Uint32 connect_fail_cb(Uint32 interval, void *param) {
         ha_event_t evt = {.type = HA_EVT_DISCONNECTED};
         s_send(&evt);
     }
+    printf("[mock_ha] HA komt over 8 s weer online (gesimuleerd herstel)\n");
+    SDL_AddTimer(8000, connect_delay_cb, NULL);
+    SDL_AddTimer(13000, timer_cb, NULL);
     return 0; /* one-shot */
 }
 

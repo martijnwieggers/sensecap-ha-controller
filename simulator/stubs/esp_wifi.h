@@ -1,6 +1,7 @@
 #pragma once
 #include "esp_err.h"
 #include <stdint.h>
+#include <string.h>
 
 typedef struct {
     uint8_t ssid[33];
@@ -10,8 +11,11 @@ typedef struct {
     uint8_t authmode;
 } wifi_ap_record_t;
 
-/* Simulator: altijd niet verbonden */
+/* Simulator: doe alsof we verbonden zijn met een vast netwerk,
+   zodat de statuspagina en het WiFi/HA-onderscheid testbaar zijn. */
 static inline esp_err_t esp_wifi_sta_get_ap_info(wifi_ap_record_t *ap) {
-    (void)ap;
-    return ESP_FAIL;
+    memset(ap, 0, sizeof(*ap));
+    strcpy((char *)ap->ssid, "Buurman_Wifi");
+    ap->rssi = -58;
+    return ESP_OK;
 }
