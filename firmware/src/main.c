@@ -3,6 +3,8 @@
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "driver/gpio.h"
 #include "lvgl.h"
 
 #include "platform/display.h"
@@ -37,6 +39,37 @@ static void task_ui(void *arg) {
     }
 }
 
+/* Factory reset: gebruikersknop (GPIO38, actief laag) 5 s ingedrukt houden
+   bij het opstarten → NVS wissen en herstarten in de setup-wizard */
+#define FACTORY_RESET_GPIO     GPIO_NUM_38
+#define FACTORY_RESET_HOLD_MS  5000
+
+static void factory_reset_check(void) {
+    gpio_config_t cfg = {
+        .pin_bit_mask = 1ULL << FACTORY_RESET_GPIO,
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
+    };
+    gpio_config(&cfg);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    if (gpio_get_level(FACTORY_RESET_GPIO) != 0) return;
+
+    ESP_LOGW(TAG, "Knop ingedrukt — %d s vasthouden voor factory reset",
+             FACTORY_RESET_HOLD_MS / 1000);
+    for (int t = 0; t < FACTORY_RESET_HOLD_MS; t += 100) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (gpio_get_level(FACTORY_RESET_GPIO) != 0) {
+            ESP_LOGI(TAG, "Knop losgelaten — factory reset geannuleerd");
+            return;
+        }
+    }
+
+    ESP_LOGW(TAG, "Factory reset: NVS wissen en herstarten");
+    storage_clear_all();
+    esp_restart();
+}
+
 static void task_ha_ws(void *arg) {
     ESP_LOGI(TAG, "HA WebSocket-taak gestart");
     ha_client_run();  /* blokkeert — interne reconnect-loop */
@@ -44,6 +77,7 @@ static void task_ha_ws(void *arg) {
 
 void app_main(void) {
     storage_init();
+    factory_reset_check();
     app_state_init();
     wifi_init();
 

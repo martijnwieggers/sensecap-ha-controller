@@ -13,6 +13,13 @@ CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_USE_MALLOC=y
 
+# RGB-panel met framebuffer in PSRAM: cache-instellingen tegen
+# beeld-drift (underrun) als WiFi/flash-verkeer de bus deelt
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
+CONFIG_SPIRAM_RODATA=y
+
 # FreeRTOS tick 1 kHz — nodig voor vlotte LVGL-timing
 CONFIG_FREERTOS_HZ=1000
 
