@@ -6,6 +6,9 @@
 #include "../platform/storage.h"
 #include "../platform/wifi.h"
 #include "esp_websocket_client.h"
+#include "esp_crt_bundle.h"
+#include "esp_netif_sntp.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -20,6 +23,11 @@ static const uint32_t BACKOFF_MS[] = {5000, 10000, 20000, 40000, 60000};
 static esp_websocket_client_handle_t s_client = NULL;
 static int s_msg_id = 1;
 
+/* Verzamelbuffer voor gefragmenteerde frames: grote HA-antwoorden
+   (lovelace-config, get_states) komen binnen in chunks van ~1 KB */
+static char  *s_rx_buf = NULL;
+static size_t s_rx_cap = 0;
+
 static void websocket_event_handler(void *arg,
                                     esp_event_base_t base,
                                     int32_t event_id,
@@ -32,12 +40,41 @@ static void websocket_event_handler(void *arg,
             app_state_set(STATE_HA_AUTH);
             break;
 
-        case WEBSOCKET_EVENT_DATA:
-            if (data->data_len > 0) {
+        case WEBSOCKET_EVENT_DATA: {
+            /* Alleen tekstframes (0x1); ping/pong/close-frames overslaan */
+            if (data->op_code != 0x01 && data->op_code != 0x00) break;
+            if (data->payload_len <= 0 || data->data_len <= 0) break;
+
+            if (data->payload_offset == 0 &&
+                data->data_len == data->payload_len) {
+                /* Compleet in één chunk: direct parsen */
                 ha_messages_handle(s_client, data->data_ptr,
                                    data->data_len, &s_msg_id);
+                break;
+            }
+
+            /* Gefragmenteerd: chunks samenvoegen tot het frame compleet is */
+            if (s_rx_cap < (size_t)data->payload_len + 1) {
+                char *nb = heap_caps_realloc(s_rx_buf, data->payload_len + 1,
+                                             MALLOC_CAP_SPIRAM);
+                if (!nb) {
+                    ESP_LOGE(TAG, "Geen PSRAM voor RX-buffer (%d B)",
+                             data->payload_len);
+                    break;
+                }
+                s_rx_buf = nb;
+                s_rx_cap = data->payload_len + 1;
+            }
+            memcpy(s_rx_buf + data->payload_offset, data->data_ptr,
+                   data->data_len);
+            if (data->payload_offset + data->data_len >=
+                data->payload_len) {
+                s_rx_buf[data->payload_len] = '\0';
+                ha_messages_handle(s_client, s_rx_buf,
+                                   data->payload_len, &s_msg_id);
             }
             break;
+        }
 
         case WEBSOCKET_EVENT_DISCONNECTED:
         case WEBSOCKET_EVENT_ERROR: {
@@ -81,9 +118,16 @@ static void build_ws_url(const char *ha_url, char *url, size_t url_len) {
 
 static void connect_once(const char *url) {
     esp_websocket_client_config_t cfg = {
-        .uri                  = url,
-        .reconnect_timeout_ms = 0,
-        .network_timeout_ms   = 10000,
+        .uri                    = url,
+        /* Herverbinden regelt ha_client_run zelf (backoff-lus) */
+        .disable_auto_reconnect = true,
+        .network_timeout_ms     = 10000,
+        /* JSON-parsen (recursie tot nesting 20) draait op deze taak;
+           de standaard 4 KB stack loopt daarbij over */
+        .task_stack             = 12288,
+        /* CA-bundel voor wss:// (https-URL's, bv. DuckDNS + Let's Encrypt);
+           bij ws:// wordt dit genegeerd */
+        .crt_bundle_attach      = esp_crt_bundle_attach,
     };
     s_client = esp_websocket_client_init(&cfg);
     esp_websocket_register_events(s_client, WEBSOCKET_EVENT_ANY,
@@ -118,6 +162,16 @@ void ha_client_run(void) {
         return;
     }
 
+    /* Kloksync via SNTP — zonder juiste tijd keurt mbedTLS elk certificaat
+       af ("not yet valid", klok staat na boot op 1970) en faalt elke wss:// */
+    esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    esp_netif_sntp_init(&sntp_cfg);
+    if (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(15000)) != ESP_OK) {
+        ESP_LOGW(TAG, "SNTP-tijdsync niet gelukt — TLS-verbindingen kunnen falen");
+    } else {
+        ESP_LOGI(TAG, "Systeemtijd gesynchroniseerd");
+    }
+
     /* Bouw WebSocket-URL */
     char ha_url[120] = {0};
     char url[128]    = {0};
@@ -125,7 +179,9 @@ void ha_client_run(void) {
     build_ws_url(ha_url, url, sizeof(url));
     ESP_LOGI(TAG, "HA URL: %s", url);
 
-    /* Reconnect-lus met exponential backoff */
+    /* Reconnect-lus met exponential backoff. Een staande verbinding blijft
+       staan; pas na een échte verbreking wordt opgeruimd en opnieuw
+       geprobeerd. */
     int backoff_idx = 0;
     while (1) {
         app_state_set(STATE_HA_CONNECTING);
@@ -133,14 +189,28 @@ void ha_client_run(void) {
         s_msg_id = 1;
         connect_once(url);
 
-        vTaskDelay(pdMS_TO_TICKS(BACKOFF_MS[backoff_idx]));
-        if (backoff_idx < (int)BACKOFF_COUNT - 1) backoff_idx++;
+        /* Wacht tot de verbinding tot stand komt (max 15 s) */
+        for (int i = 0; i < 150 && s_client &&
+                        !esp_websocket_client_is_connected(s_client); i++) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
+        if (s_client && esp_websocket_client_is_connected(s_client)) {
+            backoff_idx = 0;
+            while (esp_websocket_client_is_connected(s_client)) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+            ESP_LOGW(TAG, "Verbinding verbroken — opnieuw proberen");
+        }
 
         if (s_client) {
             esp_websocket_client_stop(s_client);
             esp_websocket_client_destroy(s_client);
             s_client = NULL;
         }
+
+        vTaskDelay(pdMS_TO_TICKS(BACKOFF_MS[backoff_idx]));
+        if (backoff_idx < (int)BACKOFF_COUNT - 1) backoff_idx++;
     }
 }
 

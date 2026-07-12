@@ -26,10 +26,13 @@
 static lv_obj_t *s_lbl_wifi   = NULL;
 static lv_obj_t *s_bars[N_BARS] = {NULL};
 static lv_obj_t *s_lbl_ip     = NULL;
+static lv_obj_t *s_lbl_ha_url = NULL;   /* geconfigureerd HA-adres */
 static lv_obj_t *s_lbl_ha     = NULL;
 static lv_obj_t *s_lbl_view   = NULL;
 static lv_obj_t *s_lbl_uptime = NULL;
 static lv_obj_t *s_lbl_msg    = NULL;   /* verbindingsmelding (US-009) */
+
+static bool s_auth_failed = false;      /* HA wees het token af */
 
 /* ---- Hulpfuncties ---- */
 
@@ -69,7 +72,7 @@ static void active_view_name(char *out, size_t len) {
 
 static void refresh_cb(lv_timer_t *timer) {
     (void)timer;
-    char buf[80];
+    char buf[140];   /* moet ook "HA-adres: " + volledige URL (119) kunnen dragen */
 
     /* WiFi: SSID + dBm + balkjes */
     wifi_ap_record_t ap;
@@ -92,11 +95,30 @@ static void refresh_cb(lv_timer_t *timer) {
     snprintf(buf, sizeof(buf), "IP: %s", ip[0] ? ip : "-");
     lv_label_set_text(s_lbl_ip, buf);
 
-    /* HA-verbindingsstatus */
-    bool ha_ok = ha_is_connected();
-    lv_label_set_text(s_lbl_ha, ha_ok ? "HA: Verbonden" : "HA: Verbroken");
-    lv_obj_set_style_text_color(s_lbl_ha,
-        ha_ok ? lv_color_hex(CLR_OK) : lv_color_hex(CLR_ERROR), 0);
+    /* Geconfigureerd HA-adres */
+    char ha_url[120] = {0};
+    storage_get_string("ha_url", ha_url, sizeof(ha_url), "");
+    snprintf(buf, sizeof(buf), "HA-adres: %s",
+             ha_url[0] ? ha_url : "niet ingesteld");
+    lv_label_set_text(s_lbl_ha_url, buf);
+
+    /* HA-verbindingsstatus, met tussenfases zodat zichtbaar is wáár
+       het verbinden blijft hangen (TCP/TLS vs. authenticatie vs. token) */
+    const char *ha_txt;
+    uint32_t    ha_clr;
+    if (s_auth_failed) {
+        ha_txt = "HA: Token ongeldig";       ha_clr = CLR_ERROR;
+    } else if (ha_is_connected()) {
+        ha_txt = "HA: Verbonden";            ha_clr = CLR_OK;
+    } else if (app_state_is(STATE_HA_CONNECTING)) {
+        ha_txt = "HA: Verbinden...";         ha_clr = CLR_SUBTEXT;
+    } else if (app_state_is(STATE_HA_AUTH)) {
+        ha_txt = "HA: Authenticeren...";     ha_clr = CLR_SUBTEXT;
+    } else {
+        ha_txt = "HA: Verbroken";            ha_clr = CLR_ERROR;
+    }
+    lv_label_set_text(s_lbl_ha, ha_txt);
+    lv_obj_set_style_text_color(s_lbl_ha, lv_color_hex(ha_clr), 0);
 
     /* Actieve view */
     char view[64];
@@ -114,9 +136,13 @@ static void refresh_cb(lv_timer_t *timer) {
              d, h, m, s2);
     lv_label_set_text(s_lbl_uptime, buf);
 
-    /* Verbindingsmelding (US-009): onderscheid WiFi- en HA-probleem */
+    /* Verbindingsmelding (US-009): onderscheid WiFi-, HA- en token-probleem */
     if (app_state_is(STATE_DISCONNECTED)) {
-        lv_label_set_text(s_lbl_msg, wifi_ok
+        lv_label_set_text(s_lbl_msg,
+            s_auth_failed
+            ? "Home Assistant weigert het token.\n"
+              "Controleer het token via Instellingen."
+            : wifi_ok
             ? "Verbinding verbroken \xE2\x80\x94 Home Assistant onbereikbaar.\n"
               "Opnieuw verbinden..."
             : "Verbinding verbroken \xE2\x80\x94 WiFi-netwerk weggevallen.\n"
@@ -129,6 +155,10 @@ static void refresh_cb(lv_timer_t *timer) {
 
 void ui_status_refresh(void) {
     if (s_lbl_wifi) refresh_cb(NULL);
+}
+
+void ui_status_set_auth_failed(bool failed) {
+    s_auth_failed = failed;
 }
 
 /* ---- Knop-callbacks ---- */
@@ -204,6 +234,12 @@ lv_obj_t *ui_status_create(void) {
     s_lbl_ip = lv_label_create(screen);
     lv_obj_set_style_text_color(s_lbl_ip, lv_color_hex(CLR_TEXT), 0);
     lv_obj_align(s_lbl_ip, LV_ALIGN_TOP_LEFT, 16, y); y += 36;
+
+    s_lbl_ha_url = lv_label_create(screen);
+    lv_obj_set_style_text_color(s_lbl_ha_url, lv_color_hex(CLR_TEXT), 0);
+    lv_label_set_long_mode(s_lbl_ha_url, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(s_lbl_ha_url, LV_HOR_RES - 32);
+    lv_obj_align(s_lbl_ha_url, LV_ALIGN_TOP_LEFT, 16, y); y += 36;
 
     s_lbl_ha = lv_label_create(screen);
     lv_obj_align(s_lbl_ha, LV_ALIGN_TOP_LEFT, 16, y); y += 36;

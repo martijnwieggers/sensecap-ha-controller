@@ -17,11 +17,25 @@ CONFIG_SPIRAM_USE_MALLOC=y
 # beeld-drift (underrun) als WiFi/flash-verkeer de bus deelt
 CONFIG_ESP32S3_DATA_CACHE_64KB=y
 CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
-CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
-CONFIG_SPIRAM_RODATA=y
+# SPIRAM_FETCH_INSTRUCTIONS/RODATA veroorzaakten StoreProhibited-bootloop in
+# esp_psram_init op echte hardware; bounce-buffer in display.c dekt underrun af
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n
+CONFIG_SPIRAM_RODATA=n
+CONFIG_LCD_RGB_ISR_IRAM_SAFE=y
+CONFIG_LCD_RGB_RESTART_IN_VSYNC=y
 
 # FreeRTOS tick 1 kHz — nodig voor vlotte LVGL-timing
 CONFIG_FREERTOS_HZ=1000
 
 # Ruimere main-task stack (JSON-parsing)
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# Web-config: browsers sturen bij POST >512B aan headers (Origin/Referer/UA),
+# standaardlimiet geeft dan HTTP 431 "header fields too long"
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
+CONFIG_HTTPD_MAX_URI_LEN=1024
+
+# mbedTLS-geheugen (±50 KB per TLS-verbinding) uit PSRAM: het interne RAM
+# zit met LVGL-buffers + WiFi te krap, waardoor wss:// faalt met
+# MBEDTLS_ERR_SSL_ALLOC_FAILED (-0x7F00)
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y

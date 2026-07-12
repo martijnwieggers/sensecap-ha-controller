@@ -19,7 +19,8 @@ static void send_json(esp_websocket_client_handle_t client, const char *json) {
 
 void ha_messages_send_auth(esp_websocket_client_handle_t client,
                            const char *token) {
-    char buf[512];
+    /* Token kan tot 511 tekens zijn (web_config_result_t) + JSON-omhulsel */
+    char buf[576];
     snprintf(buf, sizeof(buf),
              "{\"type\":\"auth\",\"access_token\":\"%s\"}", token);
     send_json(client, buf);
@@ -164,8 +165,42 @@ void ha_messages_call_service_str(esp_websocket_client_handle_t client,
 
 void ha_messages_handle(esp_websocket_client_handle_t client,
                         const char *data, int len, int *msg_id) {
+    /* Filter-parse: alleen benodigde velden worden opgeslagen. Zonder filter
+       duurt het parsen van een grote lovelace-config of get_states-payload
+       vele seconden (ArduinoJson string-pool is kwadratisch) en houdt de
+       websocket-taak de CPU vast (task-watchdog). Het lovelace-result wordt
+       hier bewust NIET meegenomen — ha_lovelace parseert de ruwe data zelf
+       met een eigen filter. */
+    /* Let op: volledige ketting-toewijzingen. Een JsonVariant-tussenvariabele
+       (bv. `JsonVariant v = filter["result"][0]`) is in ArduinoJson v7 een
+       losgekoppelde null-variant — schrijfacties erop komen niet in het
+       filterdocument terecht en die tak wordt dan volledig weggefilterd. */
+    JsonDocument filter;
+    filter["type"]    = true;
+    filter["id"]      = true;
+    filter["success"] = true;
+    filter["event"]["data"]["entity_id"]          = true;
+    filter["event"]["data"]["new_state"]["state"] = true;
+    filter["event"]["data"]["new_state"]["attributes"]["brightness"]  = true;
+    filter["event"]["data"]["new_state"]["attributes"]["temperature"] = true;
+    filter["event"]["data"]["new_state"]["attributes"]["fan_mode"]    = true;
+    filter["event"]["data"]["new_state"]["attributes"]["fan_modes"]   = true;
+    filter["event"]["data"]["new_state"]["attributes"]["hvac_modes"]  = true;
+    /* get_states-result is een array; lovelace-result (object) valt hierdoor
+       automatisch buiten het filter */
+    filter["result"][0]["entity_id"] = true;
+    filter["result"][0]["state"]     = true;
+    filter["result"][0]["attributes"]["brightness"]  = true;
+    filter["result"][0]["attributes"]["temperature"] = true;
+    filter["result"][0]["attributes"]["fan_mode"]    = true;
+    filter["result"][0]["attributes"]["fan_modes"]   = true;
+    filter["result"][0]["attributes"]["hvac_modes"]  = true;
+
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, data, len);
+    DeserializationError err = deserializeJson(
+        doc, data, len,
+        DeserializationOption::Filter(filter),
+        DeserializationOption::NestingLimit(20));
     if (err) {
         ESP_LOGW(TAG, "JSON parse fout: %s", err.c_str());
         return;
@@ -175,8 +210,12 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
     if (!type) return;
 
     if (strcmp(type, "auth_required") == 0) {
-        char token[256];
+        /* Even groot als de opslagkant (web_config_result_t.ha_token):
+           een te kleine buffer laat nvs_get_str volledig falen en dan
+           wordt er een lege token gestuurd */
+        char token[512];
         storage_get_string("ha_token", token, sizeof(token), "");
+        if (!token[0]) ESP_LOGE(TAG, "Geen token in NVS — auth gaat falen");
         ha_messages_send_auth(client, token);
 
     } else if (strcmp(type, "auth_ok") == 0) {
@@ -188,6 +227,8 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
 
     } else if (strcmp(type, "auth_invalid") == 0) {
         ESP_LOGE(TAG, "HA authenticatie mislukt — controleer token");
+        ha_event_t evt = {.type = HA_EVT_AUTH_FAILED};
+        xQueueSend(ha_event_queue, &evt, 0);
 
     } else if (strcmp(type, "result") == 0) {
         int  id      = doc["id"].as<int>();

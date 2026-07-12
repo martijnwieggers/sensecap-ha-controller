@@ -2,6 +2,7 @@
 #include "app_state.h"
 #include "app_entities.h"
 #include "../ui/ui_manager.h"
+#include "../ui/ui_status.h"
 #include "../ha/ha_client.h"
 #include "../platform/storage.h"
 #include "esp_log.h"
@@ -10,11 +11,21 @@
 static const char *TAG = "app_events";
 
 void app_events_handle(const ha_event_t *evt) {
+    /* Zolang de gebruiker in de setup-wizard/instellingen zit mag een
+       HA-event het scherm niet overnemen; na sluiten of herstart
+       synchroniseert de normale flow alles opnieuw. */
+    bool setup_open = ui_manager_setup_active();
+
     switch (evt->type) {
         case HA_EVT_CONNECTED: {
+            if (setup_open) {
+                ESP_LOGI(TAG, "HA verbonden (genegeerd: instellingen open)");
+                break;
+            }
             bool was_disconnected = app_state_is(STATE_DISCONNECTED);
             ESP_LOGI(TAG, "HA verbonden%s",
                      was_disconnected ? " (hersteld)" : "");
+            ui_status_set_auth_failed(false);
 
             char saved_view[64] = {0};
             if (was_disconnected) {
@@ -39,7 +50,14 @@ void app_events_handle(const ha_event_t *evt) {
         case HA_EVT_DISCONNECTED:
             ESP_LOGW(TAG, "HA verbroken");
             app_state_set(STATE_DISCONNECTED);
-            ui_manager_show_disconnected();
+            if (!setup_open) ui_manager_show_disconnected();
+            break;
+
+        case HA_EVT_AUTH_FAILED:
+            ESP_LOGE(TAG, "HA-token geweigerd");
+            ui_status_set_auth_failed(true);
+            app_state_set(STATE_DISCONNECTED);
+            if (!setup_open) ui_manager_show_disconnected();
             break;
 
         case HA_EVT_VIEWS_LOADED:
@@ -47,6 +65,7 @@ void app_events_handle(const ha_event_t *evt) {
             break;
 
         case HA_EVT_ENTITIES_LOADED:
+            if (setup_open) break;
             app_state_set(STATE_VIEW_READY);
             ui_manager_show_entities();
             ha_client_get_states();  /* initiële statussen van de view ophalen */

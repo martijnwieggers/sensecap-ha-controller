@@ -43,6 +43,9 @@ static void read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     lv_coord_t y = ((buf[2] & 0x0F) << 8) | buf[3];
     if (x >= LCD_H_RES) x = LCD_H_RES - 1;
     if (y >= LCD_V_RES) y = LCD_V_RES - 1;
+    /* Touchpaneel is 180° gedraaid gemonteerd t.o.v. de scanrichting van het beeld */
+    x = LCD_H_RES - 1 - x;
+    y = LCD_V_RES - 1 - y;
 
     last_x = x;
     last_y = y;

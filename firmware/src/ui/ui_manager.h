@@ -1,8 +1,12 @@
 #pragma once
+#include <stdbool.h>
 #include "../app/app_events.h"
 
 void ui_manager_init(void);
 void ui_manager_show_setup(void);
+/* True zolang de setup-wizard/instellingen het actieve scherm is —
+   HA-events mogen dan geen schermwissel forceren */
+bool ui_manager_setup_active(void);
 void ui_manager_show_view_menu(void);
 void ui_manager_show_entities(void);
 void ui_manager_show_status(void);

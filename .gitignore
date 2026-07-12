@@ -25,3 +25,6 @@ Thumbs.db
 
 # Simulator config (bevat lokale HA-instellingen)
 simulator/config.ini
+
+# Seriële debug-logs
+tools/*.log

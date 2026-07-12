@@ -1,4 +1,5 @@
 #include "web_config.h"
+#include "storage.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include <string.h>
@@ -9,6 +10,17 @@ static const char *TAG = "web_cfg";
 static httpd_handle_t   s_server   = NULL;
 static bool             s_done     = false;
 static web_config_result_t s_result = {0};
+
+/* Whitespace (incl. \r\n van een geplakt token) aan begin en eind weghalen:
+   een token met een meegekopieerde Enter erachter wordt anders integraal
+   opgeslagen en door HA afgewezen (auth_invalid) */
+static void trim_ws(char *s) {
+    size_t len = strlen(s);
+    while (len && (unsigned char)s[len - 1] <= ' ') s[--len] = '\0';
+    char *p = s;
+    while (*p && (unsigned char)*p <= ' ') p++;
+    if (p != s) memmove(s, p, strlen(p) + 1);
+}
 
 /* ---- URL-decoder ---- */
 static void url_decode(const char *src, char *dst, size_t dst_len) {
@@ -45,7 +57,11 @@ static const char HTML_FORM[] =
     "<h2>Home Assistant Configuratie</h2>"
     "<form method='POST' action='/save'>"
     "<label>HA Adres</label>"
-    "<input type='text' name='ha_url' placeholder='http://192.168.1.10:8123'>"
+    "<input type='text' name='ha_url' placeholder='http://192.168.1.10:8123' value='";
+
+/* Tussen deel 1 en 2 wordt de huidige ha_url ingevoegd (voorinvulling) */
+static const char HTML_FORM_2[] =
+    "'>"
     "<label>Long-Lived Access Token</label>"
     "<textarea name='ha_token' placeholder='eyJhbGci...'></textarea>"
     "<button type='submit'>Opslaan &amp; Doorgaan</button>"
@@ -60,8 +76,20 @@ static const char HTML_OK[] =
 /* ---- Handlers ---- */
 
 static esp_err_t get_root(httpd_req_t *req) {
+    /* Huidige URL voorinvullen zodat een bestaand adres zichtbaar is en
+       aangepast kan worden i.p.v. blind opnieuw ingetypt */
+    char cur_url[120] = {0};
+    storage_get_string("ha_url", cur_url, sizeof(cur_url), "");
+    /* Enkele aanhalingstekens zouden het value-attribuut breken */
+    for (char *p = cur_url; *p; p++) {
+        if (*p == '\'' || *p == '<' || *p == '>') *p = '_';
+    }
+
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, HTML_FORM, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, HTML_FORM, HTTPD_RESP_USE_STRLEN);
+    if (cur_url[0]) httpd_resp_send_chunk(req, cur_url, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, HTML_FORM_2, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
 
@@ -86,6 +114,9 @@ static esp_err_t post_save(httpd_req_t *req) {
             url_decode(eq + 1, raw_tok, sizeof(raw_tok));
         p = amp ? amp + 1 : NULL;
     }
+
+    trim_ws(raw_url);
+    trim_ws(raw_tok);
 
     if (raw_url[0] && raw_tok[0]) {
         strncpy(s_result.ha_url,   raw_url, sizeof(s_result.ha_url)   - 1);

@@ -86,9 +86,7 @@ static bool entity_already_added(int count, const char *eid) {
     return false;
 }
 
-static int extract_entities_from_cards(JsonArray cards) {
-    int count = 0;
-
+static int extract_entities_from_cards(JsonArray cards, int count) {
     for (JsonObject card : cards) {
         if (count >= MAX_ENTITIES) break;
 
@@ -123,13 +121,51 @@ static int extract_entities_from_cards(JsonArray cards) {
     return count;
 }
 
+/* Cards hangen direct onder de view (klassiek dashboard) of genest per
+   sectie in views[].sections[].cards[] (sections-dashboard, HA 2024+) */
+static int extract_entities_from_view(JsonObject view) {
+    int count = 0;
+    if (view["cards"].is<JsonArray>()) {
+        count = extract_entities_from_cards(view["cards"].as<JsonArray>(), count);
+    }
+    if (view["sections"].is<JsonArray>()) {
+        for (JsonObject sec : view["sections"].as<JsonArray>()) {
+            if (count >= MAX_ENTITIES) break;
+            if (sec["cards"].is<JsonArray>()) {
+                count = extract_entities_from_cards(sec["cards"].as<JsonArray>(),
+                                                    count);
+            }
+        }
+    }
+    return count;
+}
+
 /* ---- Verwerk result-bericht ---- */
 
 void ha_lovelace_handle_result(int id, const char *data, int len) {
     if (id != s_pending_id || s_pending == PENDING_NONE) return;
 
+    /* Filter-parse: alleen titel/pad en de entity-velden van cards worden
+       opgeslagen; de rest van de (mogelijk zeer grote) dashboard-config
+       wordt overgeslagen. Zie ha_messages_handle voor de achtergrond. */
+    /* Let op: volledige ketting-toewijzingen. Een JsonVariant-tussenvariabele
+       (bv. `JsonVariant v = filter["result"]["views"][0]`) is in ArduinoJson
+       v7 een losgekoppelde null-variant — schrijfacties erop komen niet in
+       het filterdocument terecht en het filter blijft dan leeg. */
+    JsonDocument filter;
+    filter["result"]["views"][0]["title"]                = true;
+    filter["result"]["views"][0]["path"]                 = true;
+    filter["result"]["views"][0]["cards"][0]["entity"]   = true;
+    filter["result"]["views"][0]["cards"][0]["entities"] = true;
+    /* Sections-dashboard (HA 2024+) */
+    filter["result"]["views"][0]["sections"][0]["cards"][0]["entity"]   = true;
+    filter["result"]["views"][0]["sections"][0]["cards"][0]["entities"] = true;
+
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, data, len);
+    DeserializationError err = deserializeJson(
+        doc, data, len,
+        DeserializationOption::Filter(filter),
+        DeserializationOption::NestingLimit(20));
     if (err) {
         ESP_LOGW(TAG, "JSON parse fout: %s", err.c_str());
         return;
@@ -137,7 +173,12 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
 
     JsonObject result = doc["result"];
     if (!result) {
-        ESP_LOGW(TAG, "Geen 'result' veld in antwoord (id=%d)", id);
+        /* Toon het begin van het ruwe antwoord: onderscheidt een
+           strategy-dashboard zonder opgeslagen config ("result":null),
+           een afwijkende structuur en een leeg gefilterd antwoord */
+        int head = len < 200 ? len : 200;
+        ESP_LOGW(TAG, "Geen 'result'-object in antwoord (id=%d); "
+                 "begin payload: %.*s", id, head, data);
         return;
     }
 
@@ -187,11 +228,8 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
             strncpy(s_view_model.view_path, s_pending_path,
                     sizeof(s_view_model.view_path) - 1);
 
-            /* Entiteiten ophalen uit cards */
-            if (view["cards"].is<JsonArray>()) {
-                entity_count = extract_entities_from_cards(
-                    view["cards"].as<JsonArray>());
-            }
+            /* Entiteiten ophalen uit cards (direct of per sectie) */
+            entity_count = extract_entities_from_view(view);
             break;
         }
 

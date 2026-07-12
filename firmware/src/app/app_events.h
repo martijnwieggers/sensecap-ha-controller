@@ -9,6 +9,7 @@ extern "C" {
 typedef enum {
     HA_EVT_CONNECTED,
     HA_EVT_DISCONNECTED,
+    HA_EVT_AUTH_FAILED,     /* HA wees het token af (auth_invalid) */
     HA_EVT_VIEWS_LOADED,
     HA_EVT_ENTITIES_LOADED,
     HA_EVT_STATE_CHANGED,

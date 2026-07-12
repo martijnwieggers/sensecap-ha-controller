@@ -198,6 +198,10 @@ void display_init(void) {
         .clk_src = LCD_CLK_SRC_PLL160M,
         .data_width = 16,
         .psram_trans_align = 64,
+        /* Bounce-buffer in intern RAM: DMA leest niet rechtstreeks uit PSRAM,
+           waardoor WiFi-/cacheverkeer geen beelddrift meer veroorzaakt; bij een
+           underrun lijnt de driver het frame op de eerstvolgende vsync opnieuw uit */
+        .bounce_buffer_size_px = LCD_H_RES * 10,
         .disp_gpio_num = GPIO_NUM_NC,
         .pclk_gpio_num = PIN_LCD_PCLK,
         .vsync_gpio_num = PIN_LCD_VSYNC,

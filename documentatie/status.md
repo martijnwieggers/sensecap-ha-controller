@@ -1,7 +1,7 @@
 # Status — SenseCap Indicator Home Assistant Controller
 
-**Laatste update:** 2026-07-08
-**Fase:** Implementatie — US-001 t/m US-011 gerealiseerd; hardware-drivers (display/touch) + factory reset geïmplementeerd, wacht op test op echt apparaat
+**Laatste update:** 2026-07-12
+**Fase:** Hardware-test — **HA-verbinding werkt end-to-end op het apparaat**: wss:// (extern DuckDNS-adres) + TLS + auth + lovelace-parsing + get_states (30 entiteiten in default_view geladen en ververst). Resterend: bediening/visuele checks op hardware
 
 ---
 
@@ -25,12 +25,20 @@
 
 ## Volgende stappen (prioriteits­volgorde)
 
-### 1. Test op echte hardware tegen echte HA
-De display- (ST7701S) en touch-driver (FT5X06) zijn nu volledig geïmplementeerd en de firmware compileert — maar nog nooit op het apparaat geflasht. Te verifiëren:
-- Beeld: init-sequence en RGB-timings zijn 1-op-1 uit de Seeed factory-BSP overgenomen (pclk 18 MHz). Bij beeld-drift/flikkering naast WiFi-verkeer: pclk verlagen naar 12–14 MHz of `bounce_buffer_size_px` (bv. `480*10`) toevoegen aan de RGB-panelconfig in `display.c`.
-- Touch: adres-detectie (0x48 GX-paneel / 0x38 fallback) en oriëntatie (rotatie 0 → geen transformatie verwacht).
+### 0. HA-verbinding — OPGELOST (2026-07-12)
+Twee oorzaken gevonden en verholpen:
+1. **Typefout in geconfigureerd adres** (`duckns` i.p.v. `duckdns`) — zichtbaar gemaakt via nieuwe HA-adres-regel op de statuspagina; gebruiker heeft het adres gecorrigeerd.
+2. **ArduinoJson v7-valkuil in de filter-opbouw**: een `JsonVariant`-tussenvariabele (`JsonVariant v = filter["result"]["views"][0]; v["title"] = true;`) is een losgekoppelde null-variant — schrijfacties komen niet in het filterdocument terecht, het filter bleef leeg en het hele antwoord werd weggefilterd ("Geen 'result' veld"). Fix: volledige ketting-toewijzingen in `ha_lovelace.cpp` én `ha_messages.cpp` (daar waren state_changed-attributen en get_states om dezelfde reden stuk).
+Geverifieerd op hardware: auth geslaagd, 30 entiteiten geladen voor `default_view`, get_states ververst alle statussen. Sections-dashboards (HA 2024+, cards in `views[].sections[].cards[]`) worden nu ook geparsed.
+- Firmware heeft géén mDNS: `homeassistant.local` werkt niet, alleen IP of publiek resolvebare hostname.
+
+### 1. Hardware-test afmaken
+Firmware boot sinds 2026-07-11 op het apparaat (bootlog schoon: PSRAM-memtest OK, ST7701S-init verstuurd, FT5X06 gevonden op 0x48, UI-taak rendert, WiFi scant). Nog te verifiëren:
+- Visueel: klopt het beeld (kleuren, oriëntatie, geen drift naast WiFi-verkeer)? Bounce-buffer (`480*10` px) staat aan in `display.c`.
+- Touch: reageert het scherm, klopt de oriëntatie?
 - Factory reset: knop op GPIO38 5 s ingedrukt bij opstart → NVS gewist → setup-wizard.
 - WebSocket-flow (auth, lovelace-parsing, get_states) tegen een echte HA-installatie.
+- Klein: font mist glyph U+2014 (—) — LVGL-warnings in log; em-dash in UI-teksten vervangen of glyph toevoegen.
 
 ### 2. Klein
 - View-menu ververst de view-lijst niet automatisch na herverbinding via saved view (handmatige refresh-knop werkt).
@@ -108,4 +116,8 @@ firmware/src/
 | 2026-07-07 | Firmware compileert nu (PlatformIO 6.1.19, `pip install --user`): partitions.csv + sdkconfig.defaults (8MB flash, OPI PSRAM, custom partitietabel); ha_messages/ha_lovelace → .cpp (ArduinoJson is C++) met extern-"C"-guards op gedeelde headers; include/lv_conf.h (RGB565, malloc/PSRAM, esp_timer-tick); esp_websocket_client 1.2.3 gevendord in components/ (PlatformIO's component-manager 1.2.3 begrijpt nieuwe registry-manifests niet); PRIu32-format in ui_status; margin→pad_column in ui_entities, lv_compat.c-stub verwijderd. RAM 13,9%, flash 20,4% |
 | 2026-07-07 | US-011 airco: WIDGET_CLIMATE vervangt WIDGET_SLIDER_TEMPERATURE — twee-regel-rij (naam + hvac/fan-cycle-knoppen boven, slider + temp onder); entity_t/ha_event_t dragen fan_mode + hvac_modes/fan_modes-lijsten; parse_state_attrs in ha_messages; ha_messages_call_service_str voor string-service-data; ha_client_set_hvac_mode/set_fan_mode; ui_entities_update neemt nu het hele event aan; mock: climate.airco met mode-lijsten, CMD_SET_HVAC_MODE/CMD_SET_FAN_MODE |
 | 2026-07-08 | Hardware-drivers: `board_io.c/h` nieuw (gedeelde I2C-bus SDA=39/SCL=40 + TCA9535-expander met schaduwregisters geseed uit hardware); `display.c` volledig — ST7701S init-sequence (verbatim uit Seeed factory-BSP) via 9-bit software-SPI (CS=expander-4, SCK=41, MOSI=48), esp_lcd RGB-panel 16-bit @ 18 MHz (porches uit BSP), framebuffer zwart vóór backlight (GPIO45) aan, LVGL dubbele 480×48-tekenbuffer in intern DMA-RAM; `touch.c` volledig — TP-reset via expander-7, FT5X06-probe 0x48/0x38, drempel-config, read_cb met klemming op 480; factory reset GPIO38 (5 s bij boot → storage_clear_all + herstart) in main.c; sdkconfig: cache-line 64B + SPIRAM fetch/rodata tegen RGB-underrun. Firmware compileert (RAM 16,7 %, flash 20,8 %); nog niet op hardware getest |
+| 2026-07-11 | Hardware-test iteraties: touch bleek 180° gedraaid gemonteerd → X- en Y-spiegeling in touch.c read_cb; web-config gaf HTTP 431 bij token-POST → `CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048`/`CONFIG_HTTPD_MAX_URI_LEN=1024` (let op: gegenereerde sdkconfig moest verwijderd worden, PlatformIO neemt defaults-wijzigingen niet over); instellingen-flow herzien: wizard via tandwiel springt direct naar stap 2 als WiFi verbonden is (WiFi-knop in titelbalk voor stap 1), huidige ha_url vooringevuld, WiFi-credentials worden niet meer overschreven bij overslaan stap 1; HA-events (connected/disconnected/entities_loaded) forceren geen schermwissel meer zolang de wizard openstaat (`ui_manager_setup_active()`) |
+| 2026-07-11 | Eerste geslaagde boot op hardware. Eerste flash gaf een StoreProhibited-bootloop in `esp_psram_init` (vóór app_main); oorzaak: `CONFIG_SPIRAM_FETCH_INSTRUCTIONS`/`CONFIG_SPIRAM_RODATA` (flash-code naar PSRAM verhuizen) — op `=n` gezet in sdkconfig.defaults. Anti-drift wordt nu gedekt door bounce-buffer `480*10` px in display.c + `CONFIG_LCD_RGB_ISR_IRAM_SAFE`/`CONFIG_LCD_RGB_RESTART_IN_VSYNC`. Bootlog daarna schoon: PSRAM 8MB memtest OK, display + touch (0x48) geïnitialiseerd, UI rendert, WiFi scant. Research: crash zit in de ROM-kopieerroutine flash→PSRAM (familie van esp-idf #15263 / ROM-cache-bugs); ESPHome draait XIP op dit board wél, maar met 32B-cachelines — sterkste verdachte is de combinatie `DATA_CACHE_LINE_64B` + ROM-copy. Wil je XIP ooit terug: `DATA_CACHE_LINE_64B` weglaten en IDF ≥5.1.4 gebruiken |
+| 2026-07-12 | HA-verbinding end-to-end werkend op hardware. Oorzaak 1: typefout in geconfigureerd adres (`duckns`→`duckdns`), gevonden via werkende seriële log + HA-adres op statuspagina. Oorzaak 2: ArduinoJson v7 — `JsonVariant`-tussenvariabelen bij filter-opbouw zijn losgekoppelde null-variants, filter bleef leeg en filterde het hele antwoord weg; ketting-toewijzingen in ha_lovelace.cpp + ha_messages.cpp. Bonus: sections-dashboards (HA 2024+) worden geparsed (`views[].sections[].cards[]`); diagnose-log toont eerste 200 tekens payload als 'result' ontbreekt. Log bevestigt: auth OK, 30 entiteiten geladen, get_states ververst |
+| 2026-07-12 | Diagnose-iteratie HA-verbinding: statuspagina toont nu het geconfigureerde HA-adres én de verbindingsfase (Verbinden.../Authenticeren.../Verbonden/Token ongeldig/Verbroken); nieuw `HA_EVT_AUTH_FAILED`-event (auth_invalid → duidelijke melding op statuspagina i.p.v. alleen log + stille reconnect-lus); token en URL worden getrimd bij opslaan (web-formulier én touchscreen — geplakte `\r\n` achter het token gaf auth_invalid); token-leesbuffer 256→512 (kleiner dan opslagkant liet nvs_get_str falen → lege token verstuurd); `tools/serial_log.py` asserteert DTR/RTS niet meer (pyserial resette het board bij elke herverbinding, log bleef daardoor leeg); gegenereerde sdkconfig verwijderd zodat `CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` (TLS-heap naar PSRAM) zeker in de build zit |
 | 2026-07-07 | US-009 + US-010 afgerond: statuspagina herzien (titelbalk + terug-knop, RSSI-balkjes 0–4, IP via wifi_get_ip, HA-status groen/rood o.b.v. app_state, actieve view-naam via lovelace-lijst, Instellingen-knop); foutmelding bij STATE_DISCONNECTED met WiFi/HA-onderscheid + directe refresh via ui_status_refresh(); na herverbinding automatisch terug naar opgeslagen view (geen get_views ernaast — één pending-slot in ha_lovelace); mock: bij ha_available=0 komt HA na 8 s weer online (herstel-test); sim-stub esp_wifi geeft nu nep-AP terug. Herstel-scenario end-to-end geverifieerd in simulator |

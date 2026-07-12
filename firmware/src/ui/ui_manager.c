@@ -48,6 +48,10 @@ void ui_manager_init(void) {
     }
 }
 
+bool ui_manager_setup_active(void) {
+    return s_screen_setup && s_screen_setup == lv_scr_act();
+}
+
 void ui_manager_show_setup(void) {
     /* Altijd vers aanmaken: WiFi-scan start opnieuw, state wordt gereset */
     if (s_screen_setup) {

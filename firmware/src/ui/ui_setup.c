@@ -166,6 +166,8 @@ static lv_obj_t *make_step_container(lv_obj_t *parent) {
    WiFi-lijst item callback
    ================================================================ */
 
+static void start_wifi_scan(void);
+
 static void wifi_item_cb(lv_event_t *e) {
     lv_obj_t *btn = lv_event_get_target(e);
     int idx = (int)(intptr_t)lv_obj_get_user_data(btn);
@@ -237,10 +239,13 @@ static void webconf_poll_cb(lv_timer_t *t) {
     web_config_get_result(&res);
     web_config_stop();
 
-    /* Sla op in NVS */
-    const char *pwd = s_pwd_ta ? lv_textarea_get_text(s_pwd_ta) : "";
-    storage_set_string("wifi_ssid", s_sel_ssid);
-    storage_set_string("wifi_pass", pwd ? pwd : "");
+    /* Sla op in NVS. WiFi alleen als stap 1 doorlopen is — anders zouden
+       de bestaande credentials met lege waarden overschreven worden. */
+    if (s_sel_ssid[0]) {
+        const char *pwd = s_pwd_ta ? lv_textarea_get_text(s_pwd_ta) : "";
+        storage_set_string("wifi_ssid", s_sel_ssid);
+        storage_set_string("wifi_pass", pwd ? pwd : "");
+    }
     storage_set_string("ha_url",    res.ha_url);
     storage_set_string("ha_token",  res.ha_token);
     storage_set_u8("configured", 1);
@@ -284,13 +289,18 @@ static void connect_poll_cb(lv_timer_t *t) {
    Knop-callbacks stap 1
    ================================================================ */
 
-static void scan_btn_cb(lv_event_t *e) {
+static void start_wifi_scan(void) {
     if (s_scan_timer) return;
     lv_obj_clean(s_wifi_list);
     lv_list_add_text(s_wifi_list, "Scannen...");
     wifi_scan_start();
     s_scan_timer = lv_timer_create(scan_poll_cb, 500, NULL);
     lv_timer_set_repeat_count(s_scan_timer, -1);
+}
+
+static void scan_btn_cb(lv_event_t *e) {
+    (void)e;
+    start_wifi_scan();
 }
 
 static void connect_btn_cb(lv_event_t *e) {
@@ -315,17 +325,30 @@ static void ta_clicked_cb(lv_event_t *e) {
     show_keyboard(lv_event_get_target(e));
 }
 
+/* Whitespace (incl. \r\n van geplakte invoer) aan begin en eind weghalen */
+static void trim_ws(char *s) {
+    size_t len = strlen(s);
+    while (len && (unsigned char)s[len - 1] <= ' ') s[--len] = '\0';
+    char *p = s;
+    while (*p && (unsigned char)*p <= ' ') p++;
+    if (p != s) memmove(s, p, strlen(p) + 1);
+}
+
 static void manual_save_cb(lv_event_t *e) {
     if (!s_url_ta || !s_token_ta) return;
-    const char *url   = lv_textarea_get_text(s_url_ta);
-    const char *token = lv_textarea_get_text(s_token_ta);
+    char url[120]   = {0};
+    char token[512] = {0};
+    strncpy(url,   lv_textarea_get_text(s_url_ta),   sizeof(url) - 1);
+    strncpy(token, lv_textarea_get_text(s_token_ta), sizeof(token) - 1);
+    trim_ws(url);
+    trim_ws(token);
     hide_keyboard();
 
-    if (!url || strlen(url) < 7) {
+    if (strlen(url) < 3) {
         set_status(s_status2_lbl, "Voer een geldig HA-adres in.", true);
         return;
     }
-    if (!token || strlen(token) < 10) {
+    if (strlen(token) < 10) {
         set_status(s_status2_lbl, "Token is te kort.", true);
         return;
     }
@@ -333,9 +356,11 @@ static void manual_save_cb(lv_event_t *e) {
     web_config_stop();
     if (s_webconf_timer) { lv_timer_del(s_webconf_timer); s_webconf_timer = NULL; }
 
-    const char *pwd = s_pwd_ta ? lv_textarea_get_text(s_pwd_ta) : "";
-    storage_set_string("wifi_ssid", s_sel_ssid);
-    storage_set_string("wifi_pass", pwd ? pwd : "");
+    if (s_sel_ssid[0]) {
+        const char *pwd = s_pwd_ta ? lv_textarea_get_text(s_pwd_ta) : "";
+        storage_set_string("wifi_ssid", s_sel_ssid);
+        storage_set_string("wifi_pass", pwd ? pwd : "");
+    }
     storage_set_string("ha_url",   url);
     storage_set_string("ha_token", token);
     storage_set_u8("configured", 1);
@@ -409,19 +434,32 @@ static void build_step1(lv_obj_t *parent) {
     s_status1_lbl = make_label(s_step1, "", CLR_SUBTEXT);
     lv_label_set_long_mode(s_status1_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_status1_lbl, LV_HOR_RES - 32);
+}
 
-    /* Auto-scan */
-    lv_obj_clean(s_wifi_list);
-    lv_list_add_text(s_wifi_list, "Scannen...");
-    wifi_scan_start();
-    s_scan_timer = lv_timer_create(scan_poll_cb, 500, NULL);
-    lv_timer_set_repeat_count(s_scan_timer, -1);
+static void wifi_step_btn_cb(lv_event_t *e) {
+    (void)e;
+    show_step(1);
+    start_wifi_scan();
 }
 
 static void build_step2(lv_obj_t *parent) {
     s_step2 = make_step_container(parent);
 
-    make_titlebar(s_step2, "Stap 2 van 3: Home Assistant");
+    lv_obj_t *bar2 = make_titlebar(s_step2, "Stap 2 van 3: Home Assistant");
+
+    /* Vanuit instellingen start de wizard op stap 2; via deze knop is de
+       WiFi-stap alsnog bereikbaar */
+    if (s_can_exit) {
+        lv_obj_t *wifi_btn = lv_btn_create(bar2);
+        lv_obj_set_size(wifi_btn, 80, 36);
+        lv_obj_align(wifi_btn, LV_ALIGN_RIGHT_MID, -8, 0);
+        lv_obj_set_style_bg_color(wifi_btn, lv_color_hex(CLR_SEP), 0);
+        lv_obj_t *wifi_lbl = lv_label_create(wifi_btn);
+        lv_label_set_text(wifi_lbl, LV_SYMBOL_WIFI " WiFi");
+        lv_obj_set_style_text_color(wifi_lbl, lv_color_hex(CLR_TEXT), 0);
+        lv_obj_center(wifi_lbl);
+        lv_obj_add_event_cb(wifi_btn, wifi_step_btn_cb, LV_EVENT_CLICKED, NULL);
+    }
 
     /* QR-code */
     s_qr = lv_qrcode_create(s_step2, 160,
@@ -531,6 +569,22 @@ lv_obj_t *ui_setup_create(void) {
     build_step1(s_screen);
     build_step2(s_screen);
     build_step3(s_screen);
+
+    /* Huidige HA-URL voorinvullen in het handmatige invoerveld */
+    char cur_url[120] = {0};
+    storage_get_string("ha_url", cur_url, sizeof(cur_url), "");
+    if (cur_url[0] && s_url_ta) lv_textarea_set_text(s_url_ta, cur_url);
+
+    if (s_can_exit && wifi_is_connected()) {
+        /* Geopend via instellingen terwijl WiFi al verbonden is:
+           WiFi-stap overslaan, direct naar de HA-configuratie */
+        show_step(2);
+        start_web_config();
+        s_webconf_timer = lv_timer_create(webconf_poll_cb, 500, NULL);
+        lv_timer_set_repeat_count(s_webconf_timer, -1);
+    } else {
+        start_wifi_scan();
+    }
 
     lv_obj_move_foreground(s_keyboard);
     return s_screen;
