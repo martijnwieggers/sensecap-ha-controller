@@ -9,10 +9,12 @@
 #include "../ha/ha_lovelace.h"
 #include "lvgl.h"
 
-/* Slide-animatie: 200 ms conform ontwerp */
-#define ANIM_MS     200
-#define ANIM_FWD    LV_SCR_LOAD_ANIM_MOVE_LEFT
-#define ANIM_BACK   LV_SCR_LOAD_ANIM_MOVE_RIGHT
+/* Schermwissel zonder animatie: full-screen slides ogen schokkerig op het
+   RGB-panel (render niet vsync-gekoppeld aan de paneelverversing), een
+   directe wissel voelt sneller */
+#define ANIM_MS     0
+#define ANIM_FWD    LV_SCR_LOAD_ANIM_NONE
+#define ANIM_BACK   LV_SCR_LOAD_ANIM_NONE
 
 static lv_obj_t *s_screen_setup         = NULL;
 static lv_obj_t *s_screen_view_menu     = NULL;

@@ -17,7 +17,9 @@
 #define ROW_H     ((LV_VER_RES - TITLE_H - DOTS_H) / ENTITIES_PER_PAGE)
 
 static view_model_t *s_vm       = NULL;
-static lv_obj_t     *s_tileview = NULL;
+static lv_obj_t     *s_pages[MAX_PAGES] = {NULL};
+static int           s_page_count = 0;
+static int           s_cur_page   = 0;
 static lv_obj_t     *s_dots     = NULL;
 
 /* ---- Dot-indicator bijwerken ---- */
@@ -33,11 +35,26 @@ static void update_dots(int active_page) {
     }
 }
 
-static void on_tile_changed(lv_event_t *e) {
-    lv_obj_t *tv   = lv_event_get_target(e);
-    lv_obj_t *tile = lv_tileview_get_tile_act(tv);
-    int page = tile ? (int)(intptr_t)lv_obj_get_user_data(tile) : 0;
+/* ---- Paginawissel zonder schuiven (veeg = direct vervangen) ---- */
+
+static void show_page(int page) {
+    if (page < 0 || page >= s_page_count || page == s_cur_page) return;
+    lv_obj_add_flag(s_pages[s_cur_page], LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s_pages[page], LV_OBJ_FLAG_HIDDEN);
+    s_cur_page = page;
     update_dots(page);
+}
+
+static void gesture_cb(lv_event_t *e) {
+    /* Een veeg die op een slider begon is een slider-drag, geen paginaveeg */
+    lv_obj_t *target = lv_event_get_target(e);
+    if (target && lv_obj_check_type(target, &lv_slider_class)) return;
+
+    lv_indev_t *indev = lv_indev_get_act();
+    if (!indev) return;
+    lv_dir_t dir = lv_indev_get_gesture_dir(indev);
+    if (dir == LV_DIR_LEFT)  show_page(s_cur_page + 1);
+    if (dir == LV_DIR_RIGHT) show_page(s_cur_page - 1);
 }
 
 /* ---- Dot-balk aanmaken ---- */
@@ -124,27 +141,29 @@ lv_obj_t *ui_entities_create(void) {
     lv_obj_center(lbl_info);
     lv_obj_add_event_cb(btn_info, info_btn_cb, LV_EVENT_CLICKED, NULL);
 
-    /* Tileview voor swipe-paginering */
-    s_tileview = lv_tileview_create(screen);
-    lv_obj_set_pos(s_tileview, 0, TITLE_H);
-    lv_obj_set_size(s_tileview, LV_HOR_RES,
-                    LV_VER_RES - TITLE_H - DOTS_H);
-    lv_obj_set_style_bg_color(s_tileview, lv_color_hex(CLR_BG), 0);
-    lv_obj_add_event_cb(s_tileview, on_tile_changed,
-                        LV_EVENT_VALUE_CHANGED, NULL);
+    /* Gestapelde pagina-containers: alleen de actieve is zichtbaar; een
+       horizontale veeg (gesture op het scherm) vervangt de pagina direct —
+       geen schuivende animatie (oogt schokkerig op het RGB-panel) */
+    s_page_count = (s_vm && s_vm->page_count > 0) ? s_vm->page_count : 1;
+    s_cur_page   = 0;
+    lv_obj_add_event_cb(screen, gesture_cb, LV_EVENT_GESTURE, NULL);
 
-    int page_count = (s_vm && s_vm->page_count > 0) ? s_vm->page_count : 1;
-
-    for (int p = 0; p < page_count; p++) {
-        lv_obj_t *tile = lv_tileview_add_tile(s_tileview, p, 0, LV_DIR_HOR);
-        lv_obj_set_style_bg_color(tile, lv_color_hex(CLR_BG), 0);
-        lv_obj_set_user_data(tile, (void *)(intptr_t)p);
+    for (int p = 0; p < s_page_count; p++) {
+        lv_obj_t *page = lv_obj_create(screen);
+        lv_obj_set_pos(page, 0, TITLE_H);
+        lv_obj_set_size(page, LV_HOR_RES, LV_VER_RES - TITLE_H - DOTS_H);
+        lv_obj_set_style_bg_color(page, lv_color_hex(CLR_BG), 0);
+        lv_obj_set_style_border_width(page, 0, 0);
+        lv_obj_set_style_pad_all(page, 0, 0);
+        lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
+        if (p != 0) lv_obj_add_flag(page, LV_OBJ_FLAG_HIDDEN);
+        s_pages[p] = page;
 
         int row_count = (s_vm && p < s_vm->page_count)
                         ? s_vm->pages[p].count : 0;
 
         if (row_count == 0) {
-            lv_obj_t *empty = lv_label_create(tile);
+            lv_obj_t *empty = lv_label_create(page);
             lv_label_set_text(empty, "Geen entiteiten op deze pagina");
             lv_obj_set_style_text_color(empty, lv_color_hex(0x9E9E9E), 0);
             lv_obj_center(empty);
@@ -155,7 +174,7 @@ lv_obj_t *ui_entities_create(void) {
             entity_t *e = s_vm->pages[p].entities[r];
             if (!e) continue;
 
-            lv_obj_t *row = lv_obj_create(tile);
+            lv_obj_t *row = lv_obj_create(page);
             lv_obj_set_pos(row, 0, r * ROW_H);
             lv_obj_set_size(row, LV_HOR_RES, ROW_H);
             lv_obj_set_style_bg_color(row, lv_color_hex(CLR_BG), 0);
@@ -170,7 +189,7 @@ lv_obj_t *ui_entities_create(void) {
     }
 
     /* Paginering-dots */
-    s_dots = build_dots(screen, page_count);
+    s_dots = build_dots(screen, s_page_count);
 
     return screen;
 }
@@ -184,8 +203,10 @@ void ui_entities_update(const ha_event_t *evt) {
     if (!e) return;
 
     strncpy(e->state, evt->state, sizeof(e->state) - 1);
+    e->state[sizeof(e->state) - 1] = '\0';
     if (evt->brightness_pct >= 0.0f) e->brightness_pct = evt->brightness_pct;
     if (evt->temperature    >= 0.0f) e->temperature    = evt->temperature;
+    if (evt->dimmable) e->dimmable = (evt->dimmable == 1);   /* 0 = onbekend */
     e->available = (strcmp(evt->state, "unavailable") != 0);
 
     /* Naamgeving als Lovelace: kaartnaam (name:) heeft voorrang,
@@ -198,6 +219,7 @@ void ui_entities_update(const ha_event_t *evt) {
     /* Climate (US-011) — alleen overnemen wat het event meelevert */
     if (evt->fan_mode[0]) {
         strncpy(e->fan_mode, evt->fan_mode, sizeof(e->fan_mode) - 1);
+        e->fan_mode[sizeof(e->fan_mode) - 1] = '\0';
     }
     if (evt->fan_mode_count > 0) {
         memcpy(e->fan_modes, evt->fan_modes, sizeof(e->fan_modes));

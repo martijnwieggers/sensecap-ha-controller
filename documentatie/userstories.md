@@ -420,4 +420,57 @@ Op de statuspagina staat een instelling "Scherm uit na" met een keuzelijst: Nooi
 - Nieuwe NVS-helpers `storage_get_u32`/`storage_set_u32` (timeout kan > 255 s zijn); ook toegevoegd aan de simulator-mock.
 ---
 
+## US-014 — Helderheids-slider bij dimbare lampen
+
+**Als** gebruiker van het apparaat
+**wil ik** bij een lamp naast de aan/uit-schakelaar ook een helderheids-slider zien wanneer de lamp aan is én dimbaar is
+**zodat** ik de helderheid direct vanaf het scherm kan regelen zonder de Home Assistant-app te openen.
+
+### Gedetailleerde beschrijving
+
+Elke lamp-rij (`light.*`) toont altijd de naam met rechts een aan/uit-schakelaar. Is de lamp dimbaar (het HA-attribuut `supported_color_modes` bevat meer dan alleen `onoff`) én staat hij aan, dan verschijnt op de onderste helft van de rij een helderheids-slider met het percentage ernaast — dezelfde twee-regel-layout als de climate-rij. Gaat de lamp uit (via het scherm of vanuit HA), dan verdwijnt de slider direct; gaat hij aan, dan verschijnt de slider met de actuele helderheid. Niet-dimbare lampen houden alleen de schakelaar. Tijdens het slepen toont het label live het percentage en worden binnenkomende updates uit HA genegeerd (bestaand slider-gedrag). Bij het loslaten wordt `light.turn_on` met `brightness_pct` aangeroepen.
+
+### Acceptatiecriteria
+
+- [x] Een lamp-rij toont altijd een aan/uit-schakelaar.
+- [x] Bij een dimbare lamp die aan staat is een helderheids-slider met percentage zichtbaar in dezelfde rij.
+- [x] De slider verschijnt/verdwijnt direct bij aan/uit — ook wanneer de wijziging vanuit HA komt.
+- [x] Bij een niet-dimbare lamp verschijnt nooit een slider.
+- [x] Loslaten van de slider stuurt `light.turn_on` met `brightness_pct`; tijdens het slepen toont het label live het percentage.
+- [x] De sliderpositie volgt helderheidswijzigingen vanuit HA (behalve tijdens het slepen).
+
+### Technische opmerkingen
+
+- Dimbaarheid uit `supported_color_modes` (get_states/state_changed): dimbaar = bevat een andere waarde dan `onoff`. Veld `entity_t.dimmable`; in `ha_event_t.dimmable` als tri-state (0 = niet meegeleverd, 1 = dimbaar, 2 = niet dimbaar) zodat events zonder attribuut de bekende waarde niet overschrijven.
+- Nieuw widgettype `WIDGET_LIGHT` vervangt voor lampen de oude toggle/slider-splitsing (die de slider nooit toonde: het widgettype werd gekozen vóór de eerste statusupdate). Slider tonen/verbergen + naam/schakelaar herpositioneren in `light_apply_layout()`; aangeroepen bij render én update.
+- Simulator-mock: `light.dimmer_bank` (dimbaar, aan) en `light.gang` (niet dimbaar) voor beide varianten.
+---
+
+## US-015 — Mode en ventilatiestand kiezen via een keuzepopup (GEPLAND)
+
+**Als** gebruiker van het apparaat
+**wil ik** bij een climate-entiteit de HVAC-mode en de ventilatiestand kiezen uit een popup met alle beschikbare opties
+**zodat** ik direct de gewenste stand kan instellen in plaats van er met herhaald tikken naartoe te bladeren.
+
+### Gedetailleerde beschrijving
+
+De twee cycle-knoppen op de climate-rij (US-011) blijven de actuele mode en ventilatiestand tonen, maar een tik opent voortaan een modale popup: een paneel midden op het scherm met een verduisterde achtergrond, met daarin de titel ("Mode" of "Ventilatie") en een verticale lijst van alle beschikbare standen uit `hvac_modes` respectievelijk `fan_modes`. De huidige stand is gemarkeerd in de accentkleur. Een tik op een stand stuurt `climate.set_hvac_mode` / `climate.set_fan_mode`, sluit de popup en het knoplabel volgt via de realtime state-update. Een tik op de verduisterde achtergrond sluit de popup zonder wijziging. Zolang de popup openstaat is de onderliggende pagina niet bedienbaar en werkt de paginaveeg niet.
+
+### Acceptatiecriteria
+
+- [ ] Een tik op de mode-knop opent een popup met alle standen uit `hvac_modes`; de actuele mode is visueel gemarkeerd.
+- [ ] Een tik op de fan-knop opent een popup met alle standen uit `fan_modes`; de actuele stand is gemarkeerd.
+- [ ] Een tik op een stand roept de juiste service aan en sluit de popup; het knoplabel wordt bijgewerkt via de state-update uit HA.
+- [ ] Een tik buiten het paneel sluit de popup zonder wijziging.
+- [ ] Bij een climate-entiteit zonder `fan_modes` opent de fan-knop geen popup (huidig neutraal gedrag blijft).
+- [ ] Terwijl de popup openstaat zijn onderliggende widgets niet bedienbaar en wisselt een veeg geen pagina.
+
+### Technische opmerkingen (implementatieplan, goedgekeurd 2026-07-12)
+
+- Alles in `ui_widgets.c`: één generieke `mode_popup_open()` voor beide knoppen (entiteit + modeslijst + huidige waarde + hvac/fan-vlag); de bestaande cycle-callbacks (`hvac_mode_btn_cb`/`fan_mode_btn_cb`) worden popup-openers.
+- Popup = full-screen overlay als kind van het actieve scherm (ruimt zichzelf op bij schermwissel) met halfdoorzichtige achtergrond + paneel met lijstknoppen; `LV_OBJ_FLAG_GESTURE_BUBBLE` uit op de overlay zodat vegen op de popup geen paginawissel triggert (zie gesture_cb in ui_entities.c); maximaal `MAX_MODES` (8) standen, lijst scrollbaar.
+- Geen wijzigingen in de HA-laag: `ha_client_set_hvac_mode()`/`set_fan_mode()` bestaan al; simulator-mock ondersteunt beide commando's (testbaar met `climate.airco`: 5 hvac-modes, 4 fan-standen).
+- Volgorde: implementeren → simulator-test → flashen → hardware-test → status.md + criteria afvinken.
+---
+
 *Gegenereerd op: 2026-06-27 | Status: concept*

@@ -5,6 +5,13 @@
 **Status:** Concept  
 **Stack:** PlatformIO + ESP-IDF v5.1.x · LVGL 8.3.3 · esp_websocket_client · ArduinoJson v7
 
+> **Bijgewerkt 2026-07-12:** dit document beschrijft het oorspronkelijke ontwerp. De actuele stand
+> (inclusief afwijkingen) staat in `status.md` — belangrijkste afwijkingen sindsdien:
+> geen schermwissel-/schuif-animaties (judder op het RGB-panel: render niet vsync-gekoppeld),
+> paginering via veeg-gesture i.p.v. tileview, `WIDGET_LIGHT` (schakelaar + conditionele slider)
+> i.p.v. aparte toggle/slider voor lampen, view-selectiescherm + `enabled_views` (US-012),
+> scherm-timeout met backlight/WiFi-powersave-koppeling (US-013), CPU 240 MHz + -O2,
+> netwerk-taken op core 1, JSON-parsen met ArduinoJson-filters (ketting-toewijzingen!).
 ---
 
 ## 1. Systeemoverzicht
