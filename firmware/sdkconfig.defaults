@@ -27,6 +27,15 @@ CONFIG_LCD_RGB_RESTART_IN_VSYNC=y
 # FreeRTOS tick 1 kHz — nodig voor vlotte LVGL-timing
 CONFIG_FREERTOS_HZ=1000
 
+# Performance (2026-07-12): IDF-defaults waren 160 MHz + -Og (debug) — LVGL
+# rendert in software, dus dit halveerde effectief de UI-snelheid
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+# Core 0 exclusief voor de UI: WiFi- en TCP/IP-taken naar core 1
+# (waar task_ha_ws en de websocket-taak al draaien)
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1=y
+
 # Ruimere main-task stack (JSON-parsing)
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 

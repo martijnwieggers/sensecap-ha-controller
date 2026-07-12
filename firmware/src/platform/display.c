@@ -1,5 +1,6 @@
 #include "display.h"
 #include "board_io.h"
+#include "wifi.h"
 #include "lvgl.h"
 #include "driver/gpio.h"
 #include "esp_lcd_panel_ops.h"
@@ -280,6 +281,9 @@ static bool s_backlight_on = false;
 void display_set_backlight(bool on) {
     gpio_set_level(PIN_LCD_BL, on ? 1 : 0);
     s_backlight_on = on;
+    /* Scherm aan = WiFi maximaal responsief (geen modem-slaap);
+       scherm uit = slaapstand terug voor energiebesparing */
+    wifi_set_low_latency(on);
 }
 
 bool display_backlight_on(void) {

@@ -119,8 +119,8 @@ static esp_err_t post_save(httpd_req_t *req) {
     trim_ws(raw_tok);
 
     if (raw_url[0] && raw_tok[0]) {
-        strncpy(s_result.ha_url,   raw_url, sizeof(s_result.ha_url)   - 1);
-        strncpy(s_result.ha_token, raw_tok, sizeof(s_result.ha_token) - 1);
+        snprintf(s_result.ha_url,   sizeof(s_result.ha_url),   "%.119s", raw_url);
+        snprintf(s_result.ha_token, sizeof(s_result.ha_token), "%.511s", raw_tok);
         s_done = true;
         ESP_LOGI(TAG, "Config ontvangen: %s", s_result.ha_url);
         httpd_resp_set_type(req, "text/html");

@@ -146,3 +146,8 @@ void wifi_get_ip(char *out, size_t len) {
 void wifi_wait_connected(void) {
     xEventGroupWaitBits(s_eg, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 }
+
+void wifi_set_low_latency(bool on) {
+    if (!s_init_done) return;
+    esp_wifi_set_ps(on ? WIFI_PS_NONE : WIFI_PS_MIN_MODEM);
+}

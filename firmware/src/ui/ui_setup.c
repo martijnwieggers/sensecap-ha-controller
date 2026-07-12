@@ -195,7 +195,7 @@ static void scan_poll_cb(lv_timer_t *t) {
     }
     for (int i = 0; i < s_scan_count; i++) {
         char label[48];
-        snprintf(label, sizeof(label), "%s  (%d dBm)",
+        snprintf(label, sizeof(label), "%.32s  (%d dBm)",
                  s_scan_results[i].ssid, s_scan_results[i].rssi);
         lv_obj_t *btn = lv_list_add_btn(s_wifi_list, LV_SYMBOL_WIFI, label);
         lv_obj_set_style_bg_color(btn, lv_color_hex(CLR_PANEL), 0);

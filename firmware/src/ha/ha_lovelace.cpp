@@ -65,6 +65,7 @@ static void set_custom_name(entity_t *e, const char *name) {
 static void fill_entity_defaults(entity_t *e) {
     e->domain = entities_parse_domain(e->entity_id);
     e->name_custom = false;
+    e->dimmable    = false;   /* wordt gezet zodra get_states binnenkomt */
 
     /* Naam: domein-prefix verwijderen en underscores vervangen */
     const char *dot = strchr(e->entity_id, '.');
@@ -257,9 +258,11 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
             if (title) {
                 strncpy(s_view_model.view_title, title,
                         sizeof(s_view_model.view_title) - 1);
+                s_view_model.view_title[sizeof(s_view_model.view_title) - 1] = '\0';
             }
             strncpy(s_view_model.view_path, s_pending_path,
                     sizeof(s_view_model.view_path) - 1);
+            s_view_model.view_path[sizeof(s_view_model.view_path) - 1] = '\0';
 
             /* Entiteiten ophalen uit cards (direct of per sectie) */
             entity_count = extract_entities_from_view(view);

@@ -31,6 +31,12 @@
 #define LV_TICK_CUSTOM_INCLUDE "esp_timer.h"
 #define LV_TICK_CUSTOM_SYS_TIME_EXPR ((uint32_t)(esp_timer_get_time() / 1000))
 
+/* ─── Verversing en input ────────────────────────────────────────────────── */
+/* Standaard 30 ms (33 fps, 30 ms touch-lag); op 240 MHz + -O2 haalt de
+   renderer 15 ms ruim — soepelere animaties en halve input-latentie */
+#define LV_DISP_DEF_REFR_PERIOD  15
+#define LV_INDEV_DEF_READ_PERIOD 15
+
 /* ─── Logging ────────────────────────────────────────────────────────────── */
 #define LV_USE_LOG 1
 #define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
