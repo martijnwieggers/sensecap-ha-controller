@@ -266,30 +266,129 @@ void ui_widgets_render_light(lv_obj_t *row, entity_t *e) {
     light_apply_layout(&s_refs[s_ref_count - 1], e);
 }
 
-/* ---- Climate: cycle-knoppen voor hvac-mode en fan-mode (US-011) ---- */
+/* ================================================================
+   Keuzepopup voor hvac-mode en ventilatiestand (US-015)
+
+   Modale overlay als kind van het actieve scherm: dimt de achtergrond,
+   vangt alle aanraking af en wordt bij een schermwissel automatisch
+   mee-opgeruimd (LV_EVENT_DELETE reset de pointer).
+   ================================================================ */
+
+static lv_obj_t *s_popup;        /* overlay; NULL = geen popup open */
+static entity_t *s_popup_ent;
+static bool      s_popup_is_fan;
+
+static void mode_popup_close(void) {
+    if (s_popup) lv_obj_del(s_popup);
+}
+
+static void popup_deleted_cb(lv_event_t *ev) {
+    (void)ev;
+    s_popup = NULL;
+}
+
+static void popup_overlay_cb(lv_event_t *ev) {
+    (void)ev;
+    mode_popup_close();  /* tik buiten het paneel = sluiten zonder wijziging */
+}
+
+static void popup_option_cb(lv_event_t *ev) {
+    const char *mode = (const char *)lv_event_get_user_data(ev);
+    entity_t   *e    = s_popup_ent;
+    if (e && mode) {
+        if (s_popup_is_fan) ha_client_set_fan_mode(e->entity_id, mode);
+        else                ha_client_set_hvac_mode(e->entity_id, mode);
+    }
+    mode_popup_close();  /* knoplabel volgt via de state-update uit HA */
+}
+
+static void mode_popup_open(entity_t *e, bool is_fan) {
+    int count = is_fan ? e->fan_mode_count : e->hvac_mode_count;
+    if (count <= 0) return;  /* geen modes bekend: knop blijft neutraal */
+    const char *current = is_fan ? e->fan_mode : e->state;
+
+    mode_popup_close();
+    s_popup_ent    = e;
+    s_popup_is_fan = is_fan;
+
+    lv_obj_t *overlay = lv_obj_create(lv_scr_act());
+    s_popup = overlay;
+    lv_obj_set_pos(overlay, 0, 0);
+    lv_obj_set_size(overlay, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_style_bg_color(overlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(overlay, LV_OPA_60, 0);
+    lv_obj_set_style_border_width(overlay, 0, 0);
+    lv_obj_set_style_radius(overlay, 0, 0);
+    lv_obj_set_style_pad_all(overlay, 0, 0);
+    lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
+    /* Vegen op de popup mag geen paginawissel triggeren: gesture stopt
+       hier in plaats van door te bubbelen naar het scherm (ui_entities) */
+    lv_obj_clear_flag(overlay, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(overlay, popup_overlay_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(overlay, popup_deleted_cb, LV_EVENT_DELETE, NULL);
+
+    /* Paneel: titel + verticale modeslijst; bij veel standen scrollt de lijst */
+    int list_h = count * 54 - 8;   /* rijen van 46 px + 8 px tussenruimte */
+    if (list_h > 330) list_h = 330;
+    int panel_h = 24 + 34 + list_h;
+
+    lv_obj_t *panel = lv_obj_create(overlay);
+    lv_obj_set_size(panel, 300, panel_h);
+    lv_obj_center(panel);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(0x2A2A4A), 0);
+    lv_obj_set_style_border_width(panel, 0, 0);
+    lv_obj_set_style_radius(panel, 8, 0);
+    lv_obj_set_style_pad_all(panel, 12, 0);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title = lv_label_create(panel);
+    lv_label_set_text(title, is_fan ? "Ventilatie" : "Mode");
+    lv_obj_set_style_text_color(title, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 0);
+
+    lv_obj_t *list = lv_obj_create(panel);
+    lv_obj_set_size(list, lv_pct(100), list_h);
+    lv_obj_align(list, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(list, 0, 0);
+    lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(list, 8, 0);
+
+    for (int i = 0; i < count; i++) {
+        const char *mode = is_fan ? e->fan_modes[i] : e->hvac_modes[i];
+        bool active = strcmp(mode, current) == 0;
+
+        lv_obj_t *btn = lv_btn_create(list);
+        lv_obj_set_size(btn, lv_pct(100), 46);
+        lv_obj_set_style_bg_color(btn,
+            lv_color_hex(active ? CLR_ACCENT : 0x1F1F3A), 0);
+        lv_obj_set_style_radius(btn, 6, 0);
+        lv_obj_set_style_border_width(btn, 0, 0);
+
+        lv_obj_t *lbl = lv_label_create(btn);
+        lv_label_set_text(lbl, mode);
+        lv_obj_set_style_text_color(lbl,
+            lv_color_hex(active ? CLR_BG : CLR_TEXT), 0);
+        lv_obj_center(lbl);
+
+        lv_obj_add_event_cb(btn, popup_option_cb, LV_EVENT_CLICKED,
+                            (void *)mode);
+    }
+}
+
+/* ---- Climate: mode- en fan-knoppen openen de keuzepopup (US-011/015) ---- */
 
 static void hvac_mode_btn_cb(lv_event_t *ev) {
     entity_t *e = (entity_t *)lv_event_get_user_data(ev);
-    if (!e || e->hvac_mode_count <= 0) return;
-
-    int idx = 0;
-    for (int i = 0; i < e->hvac_mode_count; i++) {
-        if (strcmp(e->hvac_modes[i], e->state) == 0) { idx = i; break; }
-    }
-    ha_client_set_hvac_mode(e->entity_id,
-                            e->hvac_modes[(idx + 1) % e->hvac_mode_count]);
+    if (!e) return;
+    mode_popup_open(e, false);
 }
 
 static void fan_mode_btn_cb(lv_event_t *ev) {
     entity_t *e = (entity_t *)lv_event_get_user_data(ev);
-    if (!e || e->fan_mode_count <= 0) return;
-
-    int idx = 0;
-    for (int i = 0; i < e->fan_mode_count; i++) {
-        if (strcmp(e->fan_modes[i], e->fan_mode) == 0) { idx = i; break; }
-    }
-    ha_client_set_fan_mode(e->entity_id,
-                           e->fan_modes[(idx + 1) % e->fan_mode_count]);
+    if (!e) return;
+    mode_popup_open(e, true);
 }
 
 /* Compacte cycle-knop in de bovenste regel van een climate-rij */

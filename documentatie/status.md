@@ -1,9 +1,7 @@
 # Status — SenseCap Indicator Home Assistant Controller
 
-**Laatste update:** 2026-07-12 (einde sessie)
-**Fase:** Werkend product op hardware — HA-verbinding (wss/TLS), views, bediening, scherm-timeout en performance-optimalisatie allemaal end-to-end geverifieerd. US-015 (keuzepopup climate-modes) is gepland en goedgekeurd maar nog niet gebouwd.
-
-Alles t/m het vegen-zonder-schuiven is op hardware geverifieerd én gecommit (425e3ec US-014, f1638b1 performance, 88521e3 directe wissels + docs). De working tree is schoon; eerstvolgende werk is US-015.
+**Laatste update:** 2026-07-12 (US-015 geïmplementeerd)
+**Fase:** Werkend product op hardware — HA-verbinding (wss/TLS), views, bediening, scherm-timeout en performance-optimalisatie allemaal end-to-end geverifieerd. US-015 (keuzepopup climate-modes) is gebouwd en in de simulator end-to-end getest op alle acceptatiecriteria; op hardware geflasht — korte bevestigingstest door gebruiker nog open.
 
 ---
 
@@ -25,14 +23,14 @@ Alles t/m het vegen-zonder-schuiven is op hardware geverifieerd én gecommit (42
 | US-012 | Actieve views kiezen in instellingen | **Gerealiseerd** ✅ | Views-knop op statuspagina → checkbox-scherm (NVS `enabled_views`); menu gefilterd; bij 1 actieve view menu overgeslagen bij opstarten |
 | US-013 | Scherm automatisch uit (energie)      | **Gerealiseerd** ✅ | Dropdown op statuspagina (Nooit/15s/30s/1m/2m/5m, standaard 30 s, NVS `screen_timeout`); backlight uit bij inactiviteit, wek-tik bedient geen widget |
 | US-014 | Helderheids-slider bij dimbare lampen | **Gerealiseerd** ✅ | WIDGET_LIGHT: schakelaar altijd, slider zichtbaar bij aan+dimbaar (`supported_color_modes`); twee-regel-layout, live show/hide bij state-updates |
-| US-015 | Keuzepopup climate-mode/ventilatie    | **Niet gestart** 📋 | Story + implementatieplan goedgekeurd (zie userstories.md); cycle-knoppen worden popup-openers, modale lijst met markering huidige stand |
+| US-015 | Keuzepopup climate-mode/ventilatie    | **Gerealiseerd** ✅ | Mode-/fan-knop opent modale popup (overlay + lijst, actuele stand gemarkeerd); alle criteria in simulator geverifieerd; geflasht op hardware |
 
 ---
 
 ## Volgende stappen (prioriteits­volgorde)
 
-### 1. US-015 implementeren — keuzepopup voor climate-mode en ventilatiestand
-Story + acceptatiecriteria + implementatieplan staan volledig uitgewerkt in `userstories.md` (goedgekeurd door gebruiker op 2026-07-12). Kern: `hvac_mode_btn_cb`/`fan_mode_btn_cb` in `ui_widgets.c` openen een modale popup (overlay als kind van het actieve scherm, `GESTURE_BUBBLE` uit) met de modeslijst; keuze → bestaande `ha_client_set_hvac_mode()`/`set_fan_mode()`. Eerst in de simulator testen (`climate.airco`), dan flashen.
+### 1. US-015 op hardware bevestigen (kort)
+Firmware met de popup is geflasht en boot schoon (WiFi + HA verbonden, get_states OK). Nog even op het apparaat zelf tikken: mode-popup openen, stand kiezen, tik-buiten-sluit en veeg-op-popup controleren. In de simulator zijn alle zes acceptatiecriteria al end-to-end geverifieerd (geautomatiseerde kliktest via `tools/sim_drive.ps1`).
 
 ### 2. Klein / opruimpunten
 - Font mist glyph U+2014 (—): LVGL-warnings in log; em-dash in UI-teksten vervangen of glyph toevoegen.
@@ -74,7 +72,8 @@ firmware/src/
 │   ├── ui_view_settings.c/h  checkbox-scherm actieve views → NVS enabled_views (US-012)
 │   ├── ui_entities.c/h    gestapelde pagina's + veeg-gesture = directe paginawissel (US-003)
 │   ├── ui_widgets.c/h     toggle / light (switch+slider, US-014) / climate / label /
-│   │                      actieknop; registry met naam-labels voor live updates
+│   │                      actieknop; registry met naam-labels voor live updates;
+│   │                      modale keuzepopup hvac-/fan-mode (US-015)
 │   └── ui_status.c/h      statuspagina: HA-adres + verbindingsfase, Views/Instellingen-
 │                          knoppen, scherm-timeout-dropdown (US-010/012/013)
 └── platform/
@@ -122,6 +121,7 @@ firmware/src/
 
 | Datum      | Omschrijving                                                                             |
 |------------|------------------------------------------------------------------------------------------|
+| 2026-07-12 | US-015 keuzepopup: `hvac_mode_btn_cb`/`fan_mode_btn_cb` openen nu `mode_popup_open()` i.p.v. cyclen — modale overlay (kind van actief scherm, dimt achtergrond, `GESTURE_BUBBLE` uit zodat vegen geen pagina wisselt, `LV_EVENT_DELETE` reset de pointer bij schermwissel) met paneel: titel Mode/Ventilatie + scrollbare lijst, actuele stand in accentkleur; keuze → bestaande set_hvac_mode/set_fan_mode, popup dicht, label volgt state-update; tik buiten paneel sluit zonder wijziging; geen popup bij lege modeslijst. Alle 6 criteria in simulator geverifieerd met geautomatiseerde kliktest (`tools/sim_drive.ps1` nieuw: klik/veeg/screenshot naar SDL-venster); geflasht op hardware, bootlog schoon |
 | 2026-06-27 | Project gestart, user stories + technische verkenning + technisch ontwerp                |
 | 2026-06-27 | US-001 t/m US-002: WiFi-platform, setup-wizard (web-config), lovelace-parser, view-menu  |
 | 2026-06-27 | US-003 t/m US-006: entiteitenscherm, tileview, paginering, toggle, slider, sensorlabel   |

@@ -446,7 +446,7 @@ Elke lamp-rij (`light.*`) toont altijd de naam met rechts een aan/uit-schakelaar
 - Simulator-mock: `light.dimmer_bank` (dimbaar, aan) en `light.gang` (niet dimbaar) voor beide varianten.
 ---
 
-## US-015 — Mode en ventilatiestand kiezen via een keuzepopup (GEPLAND)
+## US-015 — Mode en ventilatiestand kiezen via een keuzepopup
 
 **Als** gebruiker van het apparaat
 **wil ik** bij een climate-entiteit de HVAC-mode en de ventilatiestand kiezen uit een popup met alle beschikbare opties
@@ -458,12 +458,12 @@ De twee cycle-knoppen op de climate-rij (US-011) blijven de actuele mode en vent
 
 ### Acceptatiecriteria
 
-- [ ] Een tik op de mode-knop opent een popup met alle standen uit `hvac_modes`; de actuele mode is visueel gemarkeerd.
-- [ ] Een tik op de fan-knop opent een popup met alle standen uit `fan_modes`; de actuele stand is gemarkeerd.
-- [ ] Een tik op een stand roept de juiste service aan en sluit de popup; het knoplabel wordt bijgewerkt via de state-update uit HA.
-- [ ] Een tik buiten het paneel sluit de popup zonder wijziging.
-- [ ] Bij een climate-entiteit zonder `fan_modes` opent de fan-knop geen popup (huidig neutraal gedrag blijft).
-- [ ] Terwijl de popup openstaat zijn onderliggende widgets niet bedienbaar en wisselt een veeg geen pagina.
+- [x] Een tik op de mode-knop opent een popup met alle standen uit `hvac_modes`; de actuele mode is visueel gemarkeerd.
+- [x] Een tik op de fan-knop opent een popup met alle standen uit `fan_modes`; de actuele stand is gemarkeerd.
+- [x] Een tik op een stand roept de juiste service aan en sluit de popup; het knoplabel wordt bijgewerkt via de state-update uit HA.
+- [x] Een tik buiten het paneel sluit de popup zonder wijziging.
+- [x] Bij een climate-entiteit zonder `fan_modes` opent de fan-knop geen popup (huidig neutraal gedrag blijft).
+- [x] Terwijl de popup openstaat zijn onderliggende widgets niet bedienbaar en wisselt een veeg geen pagina.
 
 ### Technische opmerkingen (implementatieplan, goedgekeurd 2026-07-12)
 
