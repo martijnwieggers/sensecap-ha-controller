@@ -3,11 +3,7 @@
 **Laatste update:** 2026-07-12 (einde sessie)
 **Fase:** Werkend product op hardware — HA-verbinding (wss/TLS), views, bediening, scherm-timeout en performance-optimalisatie allemaal end-to-end geverifieerd. US-015 (keuzepopup climate-modes) is gepland en goedgekeurd maar nog niet gebouwd.
 
-> ⚠️ **Let op — uncommitted werk in de working tree** (wacht op gebruikersverificatie van de laatste twee punten):
-> 1. **US-014** lamp-slider (getest op hardware, werkt)
-> 2. **Performance-ronde** 240 MHz/-O2/core-verdeling/WiFi-latentie-aan-backlight/15 ms verversing (gemeten: 66 fps, boot 40% sneller)
-> 3. **Vegen zonder schuiven** (schermwissel-animatie uit + tileview → gesture-paginering) — geflasht, **eindoordeel gebruiker nog niet binnen**
-> Bij akkoord: committen als drie aparte commits in bovenstaande volgorde (let op: ui_entities.c bevat werk van 1 én 3).
+Alles t/m het vegen-zonder-schuiven is op hardware geverifieerd én gecommit (425e3ec US-014, f1638b1 performance, 88521e3 directe wissels + docs). De working tree is schoon; eerstvolgende werk is US-015.
 
 ---
 
@@ -35,13 +31,10 @@
 
 ## Volgende stappen (prioriteits­volgorde)
 
-### 1. Uncommitted werk committen (zie waarschuwing bovenaan)
-Gebruiker moet nog bevestigen dat het vegen-zonder-schuiven goed voelt op het apparaat. Daarna drie commits: US-014 → performance-ronde → veeg/animatie-wijzigingen. Werkwijze commits: PowerShell here-string, **geen dubbele aanhalingstekens in het bericht** (PS 5.1 escapet die niet naar git).
-
-### 2. US-015 implementeren — keuzepopup voor climate-mode en ventilatiestand
+### 1. US-015 implementeren — keuzepopup voor climate-mode en ventilatiestand
 Story + acceptatiecriteria + implementatieplan staan volledig uitgewerkt in `userstories.md` (goedgekeurd door gebruiker op 2026-07-12). Kern: `hvac_mode_btn_cb`/`fan_mode_btn_cb` in `ui_widgets.c` openen een modale popup (overlay als kind van het actieve scherm, `GESTURE_BUBBLE` uit) met de modeslijst; keuze → bestaande `ha_client_set_hvac_mode()`/`set_fan_mode()`. Eerst in de simulator testen (`climate.airco`), dan flashen.
 
-### 3. Klein / opruimpunten
+### 2. Klein / opruimpunten
 - Font mist glyph U+2014 (—): LVGL-warnings in log; em-dash in UI-teksten vervangen of glyph toevoegen.
 - View-menu ververst de view-lijst niet automatisch na herverbinding via saved view (handmatige refresh-knop werkt).
 - Diagnose-logging in `ha_lovelace.cpp` (per-view titel/pad + payload-head bij ontbrekend result) kan t.z.t. omlaag naar LOGD.
