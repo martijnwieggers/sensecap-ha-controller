@@ -34,6 +34,11 @@ static lv_obj_t *s_lbl_msg    = NULL;   /* verbindingsmelding (US-009) */
 
 static bool s_auth_failed = false;      /* HA wees het token af */
 
+/* Scherm-timeout opties (US-013); volgorde = dropdown-volgorde */
+static const uint32_t TIMEOUT_OPTS_S[] = {0, 15, 30, 60, 120, 300};
+#define TIMEOUT_OPT_COUNT (sizeof(TIMEOUT_OPTS_S) / sizeof(TIMEOUT_OPTS_S[0]))
+#define TIMEOUT_DEFAULT_S 30
+
 /* ---- Hulpfuncties ---- */
 
 static int rssi_to_bars(int rssi) {
@@ -183,6 +188,13 @@ static void views_btn_cb(lv_event_t *e) {
     ui_manager_show_view_settings();
 }
 
+static void timeout_dd_cb(lv_event_t *e) {
+    uint16_t sel = lv_dropdown_get_selected(lv_event_get_target(e));
+    if (sel < TIMEOUT_OPT_COUNT) {
+        storage_set_u32("screen_timeout", TIMEOUT_OPTS_S[sel]);
+    }
+}
+
 /* ---- Schermopbouw ---- */
 
 lv_obj_t *ui_status_create(void) {
@@ -257,7 +269,28 @@ lv_obj_t *ui_status_create(void) {
 
     s_lbl_uptime = lv_label_create(screen);
     lv_obj_set_style_text_color(s_lbl_uptime, lv_color_hex(CLR_SUBTEXT), 0);
-    lv_obj_align(s_lbl_uptime, LV_ALIGN_TOP_LEFT, 16, y);
+    lv_obj_align(s_lbl_uptime, LV_ALIGN_TOP_LEFT, 16, y); y += 36;
+
+    /* Scherm-timeout (US-013): label + dropdown */
+    lv_obj_t *lbl_to = lv_label_create(screen);
+    lv_label_set_text(lbl_to, "Scherm uit na:");
+    lv_obj_set_style_text_color(lbl_to, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_align(lbl_to, LV_ALIGN_TOP_LEFT, 16, y + 10);
+
+    lv_obj_t *dd = lv_dropdown_create(screen);
+    lv_dropdown_set_options(dd, "Nooit\n15 s\n30 s\n1 min\n2 min\n5 min");
+    lv_obj_set_width(dd, 150);
+    lv_obj_align(dd, LV_ALIGN_TOP_RIGHT, -16, y);
+    lv_obj_set_style_bg_color(dd, lv_color_hex(CLR_PANEL), 0);
+    lv_obj_set_style_text_color(dd, lv_color_hex(CLR_TEXT), 0);
+
+    uint32_t cur_timeout = storage_get_u32("screen_timeout", TIMEOUT_DEFAULT_S);
+    uint16_t sel = 2;   /* 30 s */
+    for (uint16_t i = 0; i < TIMEOUT_OPT_COUNT; i++) {
+        if (TIMEOUT_OPTS_S[i] == cur_timeout) { sel = i; break; }
+    }
+    lv_dropdown_set_selected(dd, sel);
+    lv_obj_add_event_cb(dd, timeout_dd_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     /* Verbindingsmelding (US-009) — alleen zichtbaar bij STATE_DISCONNECTED */
     s_lbl_msg = lv_label_create(screen);

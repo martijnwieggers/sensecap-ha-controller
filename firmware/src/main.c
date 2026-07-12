@@ -22,10 +22,29 @@ static const char *TAG = "main";
 QueueHandle_t ha_event_queue;
 QueueHandle_t cmd_queue;
 
+/* Scherm-timeout (US-013): backlight uit na een instelbare periode zonder
+   aanraking; wekken gebeurt in touch.c. 0 = nooit uitschakelen. */
+#define SCREEN_TIMEOUT_DEFAULT_S 30
+
+static void screen_timeout_cb(lv_timer_t *t) {
+    (void)t;
+    uint32_t timeout_s = storage_get_u32("screen_timeout",
+                                         SCREEN_TIMEOUT_DEFAULT_S);
+    /* Tijdens de setup-wizard/instellingen blijft het scherm aan */
+    if (timeout_s == 0 || ui_manager_setup_active()) {
+        if (!display_backlight_on()) display_set_backlight(true);
+        return;
+    }
+    if (lv_disp_get_inactive_time(NULL) >= timeout_s * 1000) {
+        if (display_backlight_on()) display_set_backlight(false);
+    }
+}
+
 static void task_ui(void *arg) {
     display_init();
     touch_init();
     ui_manager_init();
+    lv_timer_create(screen_timeout_cb, 1000, NULL);
 
     ESP_LOGI(TAG, "UI-taak gestart");
 

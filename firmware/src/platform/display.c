@@ -244,7 +244,7 @@ void display_init(void) {
         .pin_bit_mask = 1ULL << PIN_LCD_BL,
     };
     gpio_config(&bl_conf);
-    gpio_set_level(PIN_LCD_BL, 1);
+    display_set_backlight(true);
 
     /* LVGL-tekenbuffers: dubbel gebufferd in intern DMA-RAM */
     size_t buf_px = LCD_H_RES * DRAW_BUF_LINES;
@@ -271,4 +271,17 @@ void display_init(void) {
 
     ESP_LOGI(TAG, "Display klaar (%dx%d, RGB565 @ 18 MHz)",
              LCD_H_RES, LCD_V_RES);
+}
+
+/* ---- Backlight (scherm-timeout US-013) ---- */
+
+static bool s_backlight_on = false;
+
+void display_set_backlight(bool on) {
+    gpio_set_level(PIN_LCD_BL, on ? 1 : 0);
+    s_backlight_on = on;
+}
+
+bool display_backlight_on(void) {
+    return s_backlight_on;
 }

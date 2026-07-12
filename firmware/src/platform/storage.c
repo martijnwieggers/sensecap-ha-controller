@@ -56,6 +56,23 @@ void storage_set_u8(const char *key, uint8_t value) {
     nvs_close(h);
 }
 
+uint32_t storage_get_u32(const char *key, uint32_t default_val) {
+    nvs_handle_t h;
+    uint32_t val = default_val;
+    if (nvs_open(NAMESPACE, NVS_READONLY, &h) != ESP_OK) return val;
+    nvs_get_u32(h, key, &val);
+    nvs_close(h);
+    return val;
+}
+
+void storage_set_u32(const char *key, uint32_t value) {
+    nvs_handle_t h;
+    if (nvs_open(NAMESPACE, NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_u32(h, key, value);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
 void storage_clear_all(void) {
     nvs_handle_t h;
     if (nvs_open(NAMESPACE, NVS_READWRITE, &h) != ESP_OK) return;

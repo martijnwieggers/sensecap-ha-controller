@@ -81,6 +81,17 @@ void storage_set_u8(const char *key, uint8_t value) {
     storage_set_string(key, buf);
 }
 
+uint32_t storage_get_u32(const char *key, uint32_t default_val) {
+    kv_t *e = find(key);
+    return e ? (uint32_t)strtoul(e->val, NULL, 10) : default_val;
+}
+
+void storage_set_u32(const char *key, uint32_t value) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%u", (unsigned)value);
+    storage_set_string(key, buf);
+}
+
 void storage_clear_all(void) {
     s_count = 0;
     save_ini();

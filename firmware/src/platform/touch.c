@@ -1,5 +1,6 @@
 #include "touch.h"
 #include "board_io.h"
+#include "display.h"
 #include "lvgl.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -22,11 +23,27 @@ static uint8_t s_addr = 0;
 
 static void read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     static lv_coord_t last_x = 0, last_y = 0;
+    /* Aanraking die het scherm wekt mag geen widget bedienen: opslokken
+       totdat de vinger losgelaten is (US-013) */
+    static bool wake_swallow = false;
 
     uint8_t points = 0;
     if (s_addr == 0 ||
         board_i2c_read_reg8(s_addr, FT5X06_TOUCH_POINTS, &points, 1) != ESP_OK ||
         points == 0 || points > 5) {
+        wake_swallow  = false;
+        data->point.x = last_x;
+        data->point.y = last_y;
+        data->state   = LV_INDEV_STATE_RELEASED;
+        return;
+    }
+
+    if (!display_backlight_on() || wake_swallow) {
+        if (!display_backlight_on()) {
+            display_set_backlight(true);
+            lv_disp_trig_activity(NULL);   /* inactiviteitsteller resetten */
+        }
+        wake_swallow  = true;
         data->point.x = last_x;
         data->point.y = last_y;
         data->state   = LV_INDEV_STATE_RELEASED;

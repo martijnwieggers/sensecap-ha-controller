@@ -392,4 +392,32 @@ Op de statuspagina staat naast "Instellingen" een knop "Views" die een instellin
 
 ---
 
+## US-013 — Scherm automatisch uitschakelen (energiebesparing)
+
+**Als** gebruiker van het apparaat
+**wil ik** dat het scherm na een instelbare periode zonder aanraking automatisch uitgaat en bij een aanraking direct weer aangaat
+**zodat** het apparaat energie bespaart en het scherm 's avonds niet onnodig licht geeft.
+
+### Gedetailleerde beschrijving
+
+Op de statuspagina staat een instelling "Scherm uit na" met een keuzelijst: Nooit, 15 s, 30 s (standaard), 1 min, 2 min en 5 min. De keuze wordt direct opgeslagen in NVS (`screen_timeout`, seconden; 0 = nooit). Na de ingestelde periode zonder touch-invoer gaat de backlight uit; de firmware en de HA-verbinding blijven gewoon doorlopen (realtime updates blijven binnenkomen). Eén aanraking wekt het scherm weer; die aanraking wordt genegeerd als bediening zodat er niet per ongeluk een schakelaar of scene wordt geactiveerd op een onzichtbaar scherm. Tijdens de setup-wizard blijft het scherm altijd aan.
+
+### Acceptatiecriteria
+
+- [x] Op de statuspagina staat een keuzelijst "Scherm uit na" met: Nooit, 15 s, 30 s, 1 min, 2 min, 5 min.
+- [x] De standaardwaarde is 30 seconden.
+- [x] De keuze wordt direct opgeslagen in NVS en blijft behouden na een herstart.
+- [x] Na de ingestelde periode zonder aanraking gaat de backlight uit; de WebSocket-verbinding blijft actief.
+- [x] Eén aanraking zet het scherm weer aan; deze wek-aanraking bedient géén widget.
+- [x] Met de instelling "Nooit" gaat het scherm nooit uit.
+- [x] Tijdens de setup-wizard/instellingen wordt het scherm niet uitgeschakeld.
+
+### Technische opmerkingen
+
+- Backlight is GPIO45 (actief hoog): `display_set_backlight()` / `display_backlight_on()` in `display.c`.
+- Inactiviteit via `lv_disp_get_inactive_time()`; bewaking in een 1 s LVGL-timer in `main.c` (firmware-only — de simulator heeft geen backlight).
+- Wek-aanraking wordt in `touch.c` (read_cb) opgeslokt totdat de vinger losgelaten is; `lv_disp_trig_activity()` reset de inactiviteitsteller.
+- Nieuwe NVS-helpers `storage_get_u32`/`storage_set_u32` (timeout kan > 255 s zijn); ook toegevoegd aan de simulator-mock.
+---
+
 *Gegenereerd op: 2026-06-27 | Status: concept*
