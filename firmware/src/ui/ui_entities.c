@@ -180,6 +180,9 @@ lv_obj_t *ui_entities_create(void) {
             lv_obj_set_style_border_width(row, 1, 0);
             lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
             lv_obj_set_style_pad_all(row, 0, 0);
+            /* Vrije marge links en rechts: widgets komen zo niet tegen de
+               schermrand of de scrollbalk aan (alignment volgt content-area) */
+            lv_obj_set_style_pad_hor(row, 10, 0);
             lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
             ui_widgets_render_row(row, e);
