@@ -473,7 +473,7 @@ De twee cycle-knoppen op de climate-rij (US-011) blijven de actuele mode en vent
 - Volgorde: implementeren → simulator-test → flashen → hardware-test → status.md + criteria afvinken.
 ---
 
-## US-016 — Verticaal per pagina bladeren met scrollbalk (GEPLAND)
+## US-016 — Verticaal per pagina bladeren met scrollbalk
 
 **Als** gebruiker van het apparaat
 **wil ik** met een verticale veeg per hele pagina door de entiteiten van een view bladeren, met rechts een permanent zichtbare scrollbalk
@@ -487,12 +487,12 @@ Rechts op het scherm staat een permanent zichtbare verticale scrollbalk die de p
 
 ### Acceptatiecriteria
 
-- [ ] Een veeg omhoog toont direct de volgende pagina, een veeg omlaag de vorige; bij de eerste/laatste pagina gebeurt er niets.
-- [ ] De wissel is direct (geen schuif- of scrollanimatie).
-- [ ] Rechts is permanent een verticale scrollbalk zichtbaar waarvan hoogte en positie de actieve pagina in het totaal tonen; hij springt mee bij elke wissel.
-- [ ] Horizontaal vegen wisselt geen pagina meer en de dots-indicator is verwijderd.
-- [ ] Sliders blijven horizontaal bedienbaar; een verticale veeg die op een slider begint wisselt van pagina zonder de slider te verstellen of een commando naar HA te sturen.
-- [ ] De keuzepopup (US-015) werkt ongewijzigd; terwijl die openstaat wisselt een veeg geen pagina.
+- [x] Een veeg omhoog toont direct de volgende pagina, een veeg omlaag de vorige; bij de eerste/laatste pagina gebeurt er niets.
+- [x] De wissel is direct (geen schuif- of scrollanimatie).
+- [x] Rechts is permanent een verticale scrollbalk zichtbaar waarvan hoogte en positie de actieve pagina in het totaal tonen; hij springt mee bij elke wissel.
+- [x] Horizontaal vegen wisselt geen pagina meer en de dots-indicator is verwijderd.
+- [x] Sliders blijven horizontaal bedienbaar; een verticale veeg die op een slider begint wisselt van pagina zonder de slider te verstellen of een commando naar HA te sturen.
+- [x] De keuzepopup (US-015) werkt ongewijzigd; terwijl die openstaat wisselt een veeg geen pagina.
 
 ### Technische opmerkingen (implementatieplan)
 
@@ -501,6 +501,12 @@ Rechts op het scherm staat een permanent zichtbare verticale scrollbalk die de p
 - De vrijgekomen `DOTS_H`-strook onderaan gaat naar de rijen (`ROW_H` wordt `(LV_VER_RES - TITLE_H) / 6`); de scrollbalk zweeft over de rijen heen (klein overlappend object, geen layoutruimte nodig).
 - Slider-guard in `gesture_cb` blijft, maar richtingsbewust: een verticale veeg die op een slider begint moet wél wisselen. Controleren dat de veeg geen `LV_EVENT_RELEASED` met (vrijwel ongewijzigde) sliderwaarde naar HA stuurt — zo nodig release onderdrukken als er een gesture actief was.
 - US-015-popup: overlay met `GESTURE_BUBBLE` uit werkt richtingsonafhankelijk — geen wijziging nodig.
+
+### Realisatie-notities (afwijkingen van het plan, 2026-07-12)
+
+- De oude slider-guard in `gesture_cb` bleek dode code: LVGL levert het gesture-event altijd af op het schérm (de bubble-klim eindigt daar; `lv_event_get_target()` is nooit de slider). Vervangen door `lv_indev_wait_release()` bij elke verwerkte verticale veeg: de rest van de aanraking wordt genegeerd, het ingedrukte widget krijgt `PRESS_LOST` i.p.v. `RELEASED` — dus géén HA-commando, en ook schakelaars/knoppen waar een veeg op begint worden niet meer per ongeluk bediend.
+- Sliders kregen een `PRESS_LOST`-handler die waarde + label terugzet uit het entiteitsmodel (de knob verspringt bij het indrukken al naar de aanraakpositie).
+- Bijvangst US-015: een veeg die op een popup-optie begon werd bij het loslaten als klik afgehandeld (optie geselecteerd). De overlay heeft nu dezelfde `wait_release`-afhandeling op `LV_EVENT_GESTURE`; een gewone tik selecteert nog steeds.
 - HA-laag, widget-registry en `entities_build_pages()` blijven ongemoeid; `MAX_ENTITIES` (30) en 6 rijen per pagina blijven de grenzen.
 - Volgorde: implementeren → simulator-test (kliktest via `tools/sim_drive.ps1`, drag-actie bestaat al) → flashen → hardware-test → status.md + criteria afvinken.
 ---

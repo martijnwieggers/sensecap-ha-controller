@@ -1,7 +1,7 @@
 # Status — SenseCap Indicator Home Assistant Controller
 
-**Laatste update:** 2026-07-12 (US-015 geïmplementeerd)
-**Fase:** Werkend product op hardware — HA-verbinding (wss/TLS), views, bediening, scherm-timeout en performance-optimalisatie allemaal end-to-end geverifieerd. US-015 (keuzepopup climate-modes) is gebouwd en in de simulator end-to-end getest op alle acceptatiecriteria; op hardware geflasht — korte bevestigingstest door gebruiker nog open.
+**Laatste update:** 2026-07-12 (US-016 geïmplementeerd)
+**Fase:** Werkend product op hardware. US-015 (keuzepopup) en US-016 (verticaal per pagina bladeren + scrollbalk) zijn gebouwd en in de simulator end-to-end getest op alle acceptatiecriteria; op hardware geflasht — korte bevestigingstest door gebruiker nog open (popup + veeggedrag).
 
 ---
 
@@ -24,19 +24,16 @@
 | US-013 | Scherm automatisch uit (energie)      | **Gerealiseerd** ✅ | Dropdown op statuspagina (Nooit/15s/30s/1m/2m/5m, standaard 30 s, NVS `screen_timeout`); backlight uit bij inactiviteit, wek-tik bedient geen widget |
 | US-014 | Helderheids-slider bij dimbare lampen | **Gerealiseerd** ✅ | WIDGET_LIGHT: schakelaar altijd, slider zichtbaar bij aan+dimbaar (`supported_color_modes`); twee-regel-layout, live show/hide bij state-updates |
 | US-015 | Keuzepopup climate-mode/ventilatie    | **Gerealiseerd** ✅ | Mode-/fan-knop opent modale popup (overlay + lijst, actuele stand gemarkeerd); alle criteria in simulator geverifieerd; geflasht op hardware |
-| US-016 | Verticaal per pagina bladeren + scrollbalk | **Niet gestart** 📋 | Story + implementatieplan goedgekeurd (zie userstories.md); veeg omhoog/omlaag = directe paginawissel, permanente scrollbalk rechts vervangt dots |
+| US-016 | Verticaal per pagina bladeren + scrollbalk | **Gerealiseerd** ✅ | Veeg omhoog/omlaag = directe paginawissel; permanente scrollbalk rechts vervangt dots; wait_release beschermt widgets onder de veeg; alle criteria in simulator geverifieerd; geflasht |
 
 ---
 
 ## Volgende stappen (prioriteits­volgorde)
 
-### 1. US-016 implementeren — verticaal per pagina bladeren met scrollbalk
-Story + implementatieplan goedgekeurd (2026-07-12). Kern: in `ui_entities.c` reageert `gesture_cb` voortaan op verticale i.p.v. horizontale veegrichting (directe wissel blijft — geen animatie, dus geen judder); de dots-balk wordt vervangen door een permanent zichtbare verticale scrollbalk rechts (hoogte/positie = actieve pagina in totaal, bijwerken in `show_page()`); vrijgekomen `DOTS_H` gaat naar de rijhoogte. Slider-guard richtingsbewust maken: verticale veeg op een slider moet wisselen zonder HA-commando te sturen.
+### 1. US-015 + US-016 op hardware bevestigen (kort)
+Beide zijn geflasht en de firmware boot schoon (WiFi + HA verbonden, get_states OK). Nog even op het apparaat zelf: verticaal vegen (paginawissel + scrollbalk), veeg vanaf een slider (geen versteld/geen commando), mode-popup openen/kiezen/tik-buiten, veeg over de popup. In de simulator zijn alle acceptatiecriteria van beide stories al end-to-end geverifieerd (geautomatiseerde kliktest via `tools/sim_drive.ps1`).
 
-### 2. US-015 op hardware bevestigen (kort)
-Firmware met de popup is geflasht en boot schoon (WiFi + HA verbonden, get_states OK). Nog even op het apparaat zelf tikken: mode-popup openen, stand kiezen, tik-buiten-sluit en veeg-op-popup controleren. In de simulator zijn alle zes acceptatiecriteria al end-to-end geverifieerd (geautomatiseerde kliktest via `tools/sim_drive.ps1`).
-
-### 3. Klein / opruimpunten
+### 2. Klein / opruimpunten
 - Font mist glyph U+2014 (—): LVGL-warnings in log; em-dash in UI-teksten vervangen of glyph toevoegen.
 - View-menu ververst de view-lijst niet automatisch na herverbinding via saved view (handmatige refresh-knop werkt).
 - Diagnose-logging in `ha_lovelace.cpp` (per-view titel/pad + payload-head bij ontbrekend result) kan t.z.t. omlaag naar LOGD.
@@ -74,7 +71,9 @@ firmware/src/
 │   ├── ui_setup.c/h       setup-wizard 3 stappen (US-001); trim van geplakte invoer
 │   ├── ui_view_menu.c/h   view-lijst, gefilterd op enabled_views (US-002/012)
 │   ├── ui_view_settings.c/h  checkbox-scherm actieve views → NVS enabled_views (US-012)
-│   ├── ui_entities.c/h    gestapelde pagina's + veeg-gesture = directe paginawissel (US-003)
+│   ├── ui_entities.c/h    gestapelde pagina's; verticale veeg = directe paginawissel +
+│   │                      permanente scrollbalk rechts (US-003/016); wait_release
+│   │                      beschermt widgets waar een veeg op begint
 │   ├── ui_widgets.c/h     toggle / light (switch+slider, US-014) / climate / label /
 │   │                      actieknop; registry met naam-labels voor live updates;
 │   │                      modale keuzepopup hvac-/fan-mode (US-015)
@@ -107,7 +106,7 @@ firmware/src/
 | Config-opslag           | NVS namespace `ha-cfg`                                      |
 | Verbindingsprotocol     | WS (plaintext) — lokaal thuisnetwerk                        |
 | Max entiteiten per view | 30 (5 pagina's × 6 rijen)                                   |
-| Schermanimatie          | Geen (directe wissel) — full-screen slides oogden schokkerig op het RGB-panel (geen vsync-koppeling); paginering idem via veeg-gesture |
+| Schermanimatie          | Geen (directe wissel) — full-screen slides oogden schokkerig op het RGB-panel (geen vsync-koppeling); paginering idem: verticale veeg = directe wissel (US-016) |
 | CPU / compiler          | 240 MHz + -O2 (IDF-defaults waren 160 MHz + -Og — halveerde de UI-snelheid) |
 | Core-verdeling          | Core 0 exclusief UI; WiFi-, TCP/IP-, websocket- en HA-taken op core 1     |
 | WiFi power save         | Gekoppeld aan backlight: scherm aan = WIFI_PS_NONE (directe HA-respons), scherm uit = MIN_MODEM |
@@ -125,6 +124,7 @@ firmware/src/
 
 | Datum      | Omschrijving                                                                             |
 |------------|------------------------------------------------------------------------------------------|
+| 2026-07-12 | US-016 verticaal bladeren: `gesture_cb` reageert op TOP/BOTTOM i.p.v. LEFT/RIGHT (directe wissel blijft); dots vervangen door permanente scrollbalk rechts (track + duimpje, hoogte = 1/page_count, springt mee in `show_page()`); `DOTS_H` naar rijhoogte (70→73 px). Ontdekt: de oude slider-guard was dode code (gesture-event landt altijd op het scherm) — nu `lv_indev_wait_release()` bij elke verwerkte veeg: ingedrukt widget krijgt PRESS_LOST i.p.v. RELEASED (geen HA-commando, geen onbedoelde toggle/klik); sliders herstellen waarde+label uit het model bij PRESS_LOST (knob verspringt bij indrukken). Bijvangst US-015: veeg op een popup-optie selecteerde die optie bij loslaten — overlay heeft nu dezelfde wait_release-afhandeling. Alle criteria in simulator geverifieerd; geflasht, bootlog schoon |
 | 2026-07-12 | US-016 geschreven en na review aangescherpt (story + acceptatiecriteria + implementatieplan, goedgekeurd): verticaal per pagina bladeren — veeg omhoog/omlaag = directe wissel van de hele zichtbare pagina (geen vrij scrollen, geen animatie i.v.m. judder RGB-panel), permanent zichtbare scrollbalk rechts vervangt de dots |
 | 2026-07-12 | US-015 keuzepopup: `hvac_mode_btn_cb`/`fan_mode_btn_cb` openen nu `mode_popup_open()` i.p.v. cyclen — modale overlay (kind van actief scherm, dimt achtergrond, `GESTURE_BUBBLE` uit zodat vegen geen pagina wisselt, `LV_EVENT_DELETE` reset de pointer bij schermwissel) met paneel: titel Mode/Ventilatie + scrollbare lijst, actuele stand in accentkleur; keuze → bestaande set_hvac_mode/set_fan_mode, popup dicht, label volgt state-update; tik buiten paneel sluit zonder wijziging; geen popup bij lege modeslijst. Alle 6 criteria in simulator geverifieerd met geautomatiseerde kliktest (`tools/sim_drive.ps1` nieuw: klik/veeg/screenshot naar SDL-venster); geflasht op hardware, bootlog schoon |
 | 2026-06-27 | Project gestart, user stories + technische verkenning + technisch ontwerp                |

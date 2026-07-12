@@ -144,6 +144,29 @@ static void temperature_drag_cb(lv_event_t *e) {
     }
 }
 
+/* Een verticale paginaveeg die op een slider begon eindigt in PRESS_LOST
+   (ui_entities roept lv_indev_wait_release aan): er gaat geen commando naar
+   HA, maar de knob is bij het indrukken al versprongen — zet de slider en
+   het label terug op de bekende waarde uit het entiteitsmodel (US-016) */
+static void slider_press_lost_cb(lv_event_t *e) {
+    lv_obj_t *slider = lv_event_get_target(e);
+    widget_ref_t *ref = find_ref_by_widget(slider);
+    if (!ref) return;
+    const entity_t *ent = ref->ent;
+
+    if (ent->widget == WIDGET_CLIMATE) {
+        float min = ent->temp_min > 0 ? ent->temp_min : 15.0f;
+        float max = ent->temp_max > 0 ? ent->temp_max : 30.0f;
+        int pct = (int)((ent->temperature - min) / (max - min) * 100);
+        lv_slider_set_value(slider, pct, LV_ANIM_OFF);
+        if (ref->val_lbl) set_temperature_label(ref->val_lbl, ent->temperature);
+    } else {
+        int pct = ent->brightness_pct >= 0.0f ? (int)ent->brightness_pct : 0;
+        lv_slider_set_value(slider, pct, LV_ANIM_OFF);
+        if (ref->val_lbl) set_brightness_label(ref->val_lbl, pct);
+    }
+}
+
 void ui_widgets_render_row(lv_obj_t *row, entity_t *e) {
     /* Climate heeft een eigen twee-regel-layout inclusief naam (US-011) */
     if (e->widget == WIDGET_CLIMATE) {
@@ -205,6 +228,7 @@ void ui_widgets_render_slider_brightness(lv_obj_t *parent, entity_t *e) {
     register_ref(e, slider, val_lbl);
     lv_obj_add_event_cb(slider, brightness_drag_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(slider, brightness_event_cb, LV_EVENT_RELEASED, e);
+    lv_obj_add_event_cb(slider, slider_press_lost_cb, LV_EVENT_PRESS_LOST, NULL);
 }
 
 /* ---- Light: schakelaar + helderheids-slider bij aan+dimbaar (US-014) ---- */
@@ -259,6 +283,7 @@ void ui_widgets_render_light(lv_obj_t *row, entity_t *e) {
 
     lv_obj_add_event_cb(slider, brightness_drag_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(slider, brightness_event_cb, LV_EVENT_RELEASED, e);
+    lv_obj_add_event_cb(slider, slider_press_lost_cb, LV_EVENT_PRESS_LOST, NULL);
 
     register_ref(e, sw, val_lbl);
     s_refs[s_ref_count - 1].slider = slider;
@@ -290,6 +315,16 @@ static void popup_deleted_cb(lv_event_t *ev) {
 static void popup_overlay_cb(lv_event_t *ev) {
     (void)ev;
     mode_popup_close();  /* tik buiten het paneel = sluiten zonder wijziging */
+}
+
+/* Veeg op de popup: geen paginawissel (gesture stopt hier door GESTURE_BUBBLE
+   uit) én geen klik — zonder wait_release zou het loslaten de optie waarop
+   de veeg begon selecteren (LV_EVENT_CLICKED gaat naar het ingedrukte object,
+   ook als de vinger er inmiddels vanaf is) */
+static void popup_gesture_cb(lv_event_t *ev) {
+    (void)ev;
+    lv_indev_t *indev = lv_indev_get_act();
+    if (indev) lv_indev_wait_release(indev);
 }
 
 static void popup_option_cb(lv_event_t *ev) {
@@ -325,6 +360,7 @@ static void mode_popup_open(entity_t *e, bool is_fan) {
        hier in plaats van door te bubbelen naar het scherm (ui_entities) */
     lv_obj_clear_flag(overlay, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_add_event_cb(overlay, popup_overlay_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(overlay, popup_gesture_cb, LV_EVENT_GESTURE, NULL);
     lv_obj_add_event_cb(overlay, popup_deleted_cb, LV_EVENT_DELETE, NULL);
 
     /* Paneel: titel + verticale modeslijst; bij veel standen scrollt de lijst */
@@ -450,6 +486,7 @@ void ui_widgets_render_climate(lv_obj_t *row, entity_t *e) {
     register_name_label(e, name_lbl);
     lv_obj_add_event_cb(slider, temperature_drag_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(slider, temperature_event_cb, LV_EVENT_RELEASED, e);
+    lv_obj_add_event_cb(slider, slider_press_lost_cb, LV_EVENT_PRESS_LOST, NULL);
 }
 
 void ui_widgets_render_label(lv_obj_t *parent, entity_t *e) {
