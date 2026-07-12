@@ -18,6 +18,7 @@ typedef struct {
     const entity_t *ent;
     lv_obj_t       *widget;    /* switch / slider / waarde-label */
     lv_obj_t       *val_lbl;   /* label naast slider, NULL indien n.v.t. */
+    lv_obj_t       *name_lbl;  /* naam-label links (friendly_name-update) */
     lv_obj_t       *mode_lbl;  /* climate: label in hvac-mode-knop */
     lv_obj_t       *fan_lbl;   /* climate: label in fan-knop */
 } widget_ref_t;
@@ -35,9 +36,21 @@ static void register_ref(const entity_t *e, lv_obj_t *widget,
     s_refs[s_ref_count].ent      = e;
     s_refs[s_ref_count].widget   = widget;
     s_refs[s_ref_count].val_lbl  = val_lbl;
+    s_refs[s_ref_count].name_lbl = NULL;
     s_refs[s_ref_count].mode_lbl = NULL;
     s_refs[s_ref_count].fan_lbl  = NULL;
     s_ref_count++;
+}
+
+/* Koppel het naam-label aan de zojuist geregistreerde ref van deze entiteit,
+   zodat een friendly_name uit HA de naam live kan bijwerken */
+static void register_name_label(const entity_t *e, lv_obj_t *name_lbl) {
+    for (int i = s_ref_count - 1; i >= 0; i--) {
+        if (s_refs[i].ent == e) {
+            s_refs[i].name_lbl = name_lbl;
+            return;
+        }
+    }
 }
 
 static void register_climate_ref(const entity_t *e, lv_obj_t *slider,
@@ -151,6 +164,7 @@ void ui_widgets_render_row(lv_obj_t *row, entity_t *e) {
         case WIDGET_LABEL:
         default:                       ui_widgets_render_label(row, e);             break;
     }
+    register_name_label(e, name_lbl);
 }
 
 void ui_widgets_render_toggle(lv_obj_t *parent, entity_t *e) {
@@ -267,6 +281,7 @@ void ui_widgets_render_climate(lv_obj_t *row, entity_t *e) {
     lv_obj_align(val_lbl, LV_ALIGN_BOTTOM_RIGHT, -8, -10);
 
     register_climate_ref(e, slider, val_lbl, mode_lbl, fan_lbl);
+    register_name_label(e, name_lbl);
     lv_obj_add_event_cb(slider, temperature_drag_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(slider, temperature_event_cb, LV_EVENT_RELEASED, e);
 }
@@ -320,6 +335,8 @@ void ui_widgets_render_action_button(lv_obj_t *parent, entity_t *e) {
     lv_obj_center(lbl);
 
     lv_obj_add_event_cb(btn, action_btn_event_cb, LV_EVENT_CLICKED, e);
+    /* Ref zodat ook actieknop-rijen een naam-update kunnen krijgen */
+    register_ref(e, btn, NULL);
 }
 
 /* ================================================================
@@ -331,6 +348,11 @@ void ui_widgets_update(const entity_t *e) {
         if (s_refs[i].ent != e) continue;
         lv_obj_t *w   = s_refs[i].widget;
         lv_obj_t *lbl = s_refs[i].val_lbl;
+
+        /* Naam kan wijzigen zodra HA de friendly_name meelevert */
+        if (s_refs[i].name_lbl) {
+            lv_label_set_text(s_refs[i].name_lbl, e->name);
+        }
 
         switch (e->widget) {
             case WIDGET_TOGGLE:

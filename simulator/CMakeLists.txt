@@ -47,6 +47,7 @@ set(SHARED_SOURCES
     ${FIRMWARE_SRC}/ui/ui_manager.c
     ${FIRMWARE_SRC}/ui/ui_setup.c
     ${FIRMWARE_SRC}/ui/ui_view_menu.c
+    ${FIRMWARE_SRC}/ui/ui_view_settings.c
     ${FIRMWARE_SRC}/ui/ui_entities.c
     ${FIRMWARE_SRC}/ui/ui_widgets.c
     ${FIRMWARE_SRC}/ui/ui_status.c

@@ -363,4 +363,33 @@ Een airco is in Home Assistant een `climate.*`-entiteit. De HVAC-mode (bijv. `of
 
 ---
 
+---
+
+## US-012 — Actieve views kiezen in de instellingen
+
+**Als** gebruiker van het apparaat
+**wil ik** in de instellingen alle views uit Home Assistant zien en kunnen aanvinken welke ik op het apparaat wil gebruiken
+**zodat** het keuzemenu alleen relevante views toont en het apparaat bij één actieve view direct die view opent na het opstarten.
+
+### Gedetailleerde beschrijving
+
+Op de statuspagina staat naast "Instellingen" een knop "Views" die een instellingenscherm opent met alle views uit de Lovelace-config, elk met een checkbox. De selectie wordt direct opgeslagen in NVS (`enabled_views`, kommagescheiden paden). Het view-keuzemenu toont alleen aangevinkte views; is er niets aangevinkt (of bestaan de aangevinkte views niet meer in HA) dan worden alle views getoond. Is er precies één view aangevinkt, dan laadt het apparaat die view direct na het verbinden en wordt het keuzemenu overgeslagen.
+
+### Acceptatiecriteria
+
+- [x] De statuspagina heeft een knop "Views" die het view-instellingenscherm opent.
+- [x] Het scherm toont alle views uit Home Assistant met een checkbox per view.
+- [x] Een wijziging van de selectie wordt direct opgeslagen (NVS `enabled_views`).
+- [x] Het view-keuzemenu toont alleen aangevinkte views; geen (geldige) selectie betekent alle views.
+- [x] Bij precies één aangevinkte view wordt na het opstarten direct die view geladen en het keuzemenu overgeslagen.
+- [x] Bij meerdere aangevinkte views verschijnt het keuzemenu met alleen die views.
+
+### Technische opmerkingen
+
+- Nieuw scherm `ui_view_settings.c/h`; helpers `view_settings_is_enabled()` en `view_settings_enabled_count()` lezen alleen NVS (geen LVGL).
+- Views zonder pad (URL-veld leeg in HA) krijgen bij het parsen een synthetisch pad `#<index>` en zijn daarmee gewoon kiesbaar, aanvinkbaar en laadbaar. Let op: de index verschuift als views in HA herordend worden; een URL instellen in HA is stabieler.
+- De boot-logica zit in `app_events.c` (HA_EVT_CONNECTED): bij één actieve view wordt die als `selected_view` opgeslagen en direct geladen.
+
+---
+
 *Gegenereerd op: 2026-06-27 | Status: concept*

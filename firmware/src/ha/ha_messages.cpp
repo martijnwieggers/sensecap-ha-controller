@@ -58,6 +58,10 @@ static void copy_mode_list(JsonVariant arr, char dst[][MODE_STR_LEN], int *count
 
 /* Gedeelde attribuut-parsing voor state_changed-events en get_states */
 static void parse_state_attrs(JsonVariant attrs, ha_event_t *evt) {
+    const char *fname = attrs["friendly_name"].as<const char *>();
+    if (fname) {
+        strncpy(evt->friendly_name, fname, sizeof(evt->friendly_name) - 1);
+    }
     if (attrs["brightness"].is<float>()) {
         evt->brightness_pct = attrs["brightness"].as<float>() / 2.55f;
     }
@@ -181,6 +185,7 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
     filter["success"] = true;
     filter["event"]["data"]["entity_id"]          = true;
     filter["event"]["data"]["new_state"]["state"] = true;
+    filter["event"]["data"]["new_state"]["attributes"]["friendly_name"] = true;
     filter["event"]["data"]["new_state"]["attributes"]["brightness"]  = true;
     filter["event"]["data"]["new_state"]["attributes"]["temperature"] = true;
     filter["event"]["data"]["new_state"]["attributes"]["fan_mode"]    = true;
@@ -190,6 +195,7 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
        automatisch buiten het filter */
     filter["result"][0]["entity_id"] = true;
     filter["result"][0]["state"]     = true;
+    filter["result"][0]["attributes"]["friendly_name"] = true;
     filter["result"][0]["attributes"]["brightness"]  = true;
     filter["result"][0]["attributes"]["temperature"] = true;
     filter["result"][0]["attributes"]["fan_mode"]    = true;

@@ -1,10 +1,12 @@
 #include "ui_manager.h"
 #include "ui_setup.h"
 #include "ui_view_menu.h"
+#include "ui_view_settings.h"
 #include "ui_entities.h"
 #include "ui_status.h"
 #include "../platform/storage.h"
 #include "../app/app_state.h"
+#include "../ha/ha_lovelace.h"
 #include "lvgl.h"
 
 /* Slide-animatie: 200 ms conform ontwerp */
@@ -12,10 +14,11 @@
 #define ANIM_FWD    LV_SCR_LOAD_ANIM_MOVE_LEFT
 #define ANIM_BACK   LV_SCR_LOAD_ANIM_MOVE_RIGHT
 
-static lv_obj_t *s_screen_setup      = NULL;
-static lv_obj_t *s_screen_view_menu  = NULL;
-static lv_obj_t *s_screen_entities   = NULL;
-static lv_obj_t *s_screen_status     = NULL;
+static lv_obj_t *s_screen_setup         = NULL;
+static lv_obj_t *s_screen_view_menu     = NULL;
+static lv_obj_t *s_screen_view_settings = NULL;
+static lv_obj_t *s_screen_entities      = NULL;
+static lv_obj_t *s_screen_status        = NULL;
 
 /* lv_scr_load_anim() op het al-actieve scherm laat beide slide-animaties op
    hetzelfde object los; de uit-animatie wint en het scherm eindigt off-screen
@@ -64,7 +67,19 @@ void ui_manager_show_setup(void) {
 
 void ui_manager_show_view_menu(void) {
     if (!s_screen_view_menu) s_screen_view_menu = ui_view_menu_create();
+    if (ha_lovelace_get_view_count() > 0) {
+        ui_view_menu_refresh();   /* filter (enabled views) kan gewijzigd zijn */
+    }
     load_screen(s_screen_view_menu, ANIM_FWD);
+}
+
+void ui_manager_show_view_settings(void) {
+    if (!s_screen_view_settings) {
+        s_screen_view_settings = ui_view_settings_create();
+    } else {
+        ui_view_settings_refresh();
+    }
+    load_screen(s_screen_view_settings, ANIM_FWD);
 }
 
 void ui_manager_show_entities(void) {
@@ -97,6 +112,7 @@ void ui_manager_show_disconnected(void) {
 
 void ui_manager_refresh_view_list(void) {
     ui_view_menu_refresh();
+    ui_view_settings_refresh();
 }
 
 void ui_manager_update_entity(const ha_event_t *evt) {

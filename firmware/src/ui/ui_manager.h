@@ -8,6 +8,7 @@ void ui_manager_show_setup(void);
    HA-events mogen dan geen schermwissel forceren */
 bool ui_manager_setup_active(void);
 void ui_manager_show_view_menu(void);
+void ui_manager_show_view_settings(void);
 void ui_manager_show_entities(void);
 void ui_manager_show_status(void);
 void ui_manager_show_disconnected(void);

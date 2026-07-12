@@ -19,6 +19,8 @@ typedef struct {
     ha_event_type_t type;
     char entity_id[64];
     char state[32];
+    /* friendly_name uit HA-attributen; leeg = niet meegeleverd */
+    char friendly_name[48];
     float brightness_pct;
     float temperature;
     /* Climate (US-011). Lege string / count 0 = niet meegeleverd,

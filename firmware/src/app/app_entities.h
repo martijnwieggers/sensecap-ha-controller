@@ -39,6 +39,9 @@ typedef enum {
 typedef struct {
     char            entity_id[64];
     char            name[48];
+    bool            name_custom;     /* naam komt uit de lovelace-kaart (name:)
+                                        en mag niet door friendly_name
+                                        overschreven worden */
     char            state[32];
     entity_domain_t domain;
     widget_type_t   widget;

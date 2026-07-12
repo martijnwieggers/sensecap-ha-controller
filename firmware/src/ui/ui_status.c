@@ -178,6 +178,11 @@ static void settings_btn_cb(lv_event_t *e) {
     ui_manager_show_setup();
 }
 
+static void views_btn_cb(lv_event_t *e) {
+    (void)e;
+    ui_manager_show_view_settings();
+}
+
 /* ---- Schermopbouw ---- */
 
 lv_obj_t *ui_status_create(void) {
@@ -263,10 +268,20 @@ lv_obj_t *ui_status_create(void) {
     lv_obj_align(s_lbl_msg, LV_ALIGN_BOTTOM_MID, 0, -84);
     lv_obj_add_flag(s_lbl_msg, LV_OBJ_FLAG_HIDDEN);
 
-    /* Instellingen-knop onderaan */
+    /* Views- en Instellingen-knop naast elkaar onderaan */
+    lv_obj_t *views_btn = lv_btn_create(screen);
+    lv_obj_set_size(views_btn, (LV_HOR_RES - 48) / 2, 52);
+    lv_obj_align(views_btn, LV_ALIGN_BOTTOM_LEFT, 16, -16);
+    lv_obj_set_style_bg_color(views_btn, lv_color_hex(CLR_SEP), 0);
+    lv_obj_t *views_lbl = lv_label_create(views_btn);
+    lv_label_set_text(views_lbl, LV_SYMBOL_LIST "  Views");
+    lv_obj_set_style_text_color(views_lbl, lv_color_hex(CLR_TEXT), 0);
+    lv_obj_center(views_lbl);
+    lv_obj_add_event_cb(views_btn, views_btn_cb, LV_EVENT_CLICKED, NULL);
+
     lv_obj_t *set_btn = lv_btn_create(screen);
-    lv_obj_set_size(set_btn, LV_HOR_RES - 32, 52);
-    lv_obj_align(set_btn, LV_ALIGN_BOTTOM_MID, 0, -16);
+    lv_obj_set_size(set_btn, (LV_HOR_RES - 48) / 2, 52);
+    lv_obj_align(set_btn, LV_ALIGN_BOTTOM_RIGHT, -16, -16);
     lv_obj_set_style_bg_color(set_btn, lv_color_hex(CLR_SEP), 0);
     lv_obj_t *set_lbl = lv_label_create(set_btn);
     lv_label_set_text(set_lbl, LV_SYMBOL_SETTINGS "  Instellingen");

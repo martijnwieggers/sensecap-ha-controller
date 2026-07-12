@@ -188,6 +188,13 @@ void ui_entities_update(const ha_event_t *evt) {
     if (evt->temperature    >= 0.0f) e->temperature    = evt->temperature;
     e->available = (strcmp(evt->state, "unavailable") != 0);
 
+    /* Naamgeving als Lovelace: kaartnaam (name:) heeft voorrang,
+       anders de friendly_name van de entiteit */
+    if (evt->friendly_name[0] && !e->name_custom) {
+        strncpy(e->name, evt->friendly_name, sizeof(e->name) - 1);
+        e->name[sizeof(e->name) - 1] = '\0';
+    }
+
     /* Climate (US-011) — alleen overnemen wat het event meelevert */
     if (evt->fan_mode[0]) {
         strncpy(e->fan_mode, evt->fan_mode, sizeof(e->fan_mode) - 1);

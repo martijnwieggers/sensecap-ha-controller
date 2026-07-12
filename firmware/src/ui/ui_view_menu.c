@@ -1,5 +1,6 @@
 #include "ui_view_menu.h"
 #include "ui_manager.h"
+#include "ui_view_settings.h"
 #include "../ha/ha_client.h"
 #include "../ha/ha_lovelace.h"
 #include "../platform/storage.h"
@@ -63,9 +64,19 @@ static void populate_list(void) {
     char saved_path[64] = {0};
     storage_get_string("selected_view", saved_path, sizeof(saved_path), "");
 
+    /* Filter op aangevinkte views (US-012). Levert het filter niets op
+       (bv. views bestaan niet meer in HA), toon dan alles. */
+    int enabled_present = 0;
+    for (int i = 0; i < count; i++) {
+        const ha_view_info_t *v = ha_lovelace_get_view(i);
+        if (v && view_settings_is_enabled(v->path)) enabled_present++;
+    }
+    bool apply_filter = enabled_present > 0;
+
     for (int i = 0; i < count; i++) {
         const ha_view_info_t *view = ha_lovelace_get_view(i);
         if (!view) continue;
+        if (apply_filter && !view_settings_is_enabled(view->path)) continue;
 
         char label[80];
         snprintf(label, sizeof(label), "  %s", view->title);

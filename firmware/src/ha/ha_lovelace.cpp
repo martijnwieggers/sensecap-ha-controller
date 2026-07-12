@@ -55,8 +55,16 @@ void ha_lovelace_request(esp_websocket_client_handle_t client,
 
 /* ---- Hulpfuncties voor JSON-parsing ---- */
 
+static void set_custom_name(entity_t *e, const char *name) {
+    if (!name || !name[0]) return;
+    strncpy(e->name, name, sizeof(e->name) - 1);
+    e->name[sizeof(e->name) - 1] = '\0';
+    e->name_custom = true;
+}
+
 static void fill_entity_defaults(entity_t *e) {
     e->domain = entities_parse_domain(e->entity_id);
+    e->name_custom = false;
 
     /* Naam: domein-prefix verwijderen en underscores vervangen */
     const char *dot = strchr(e->entity_id, '.');
@@ -90,29 +98,35 @@ static int extract_entities_from_cards(JsonArray cards, int count) {
     for (JsonObject card : cards) {
         if (count >= MAX_ENTITIES) break;
 
-        /* Type 1: card heeft een enkel entity-veld */
+        /* Type 1: card heeft een enkel entity-veld; card-level "name"
+           overschrijft de entiteitsnaam (Lovelace-gedrag) */
         const char *single = card["entity"];
         if (single && !entity_already_added(count, single)) {
             strncpy(s_entities[count].entity_id, single,
                     sizeof(s_entities[count].entity_id) - 1);
             fill_entity_defaults(&s_entities[count]);
+            set_custom_name(&s_entities[count], card["name"]);
             count++;
         }
 
-        /* Type 2: card heeft een entities-lijst */
+        /* Type 2: card heeft een entities-lijst; list-items kunnen een
+           eigen "name" dragen */
         if (card["entities"].is<JsonArray>()) {
             for (JsonVariant ent : card["entities"].as<JsonArray>()) {
                 if (count >= MAX_ENTITIES) break;
-                const char *eid = NULL;
+                const char *eid   = NULL;
+                const char *ename = NULL;
                 if (ent.is<const char *>()) {
                     eid = ent.as<const char *>();
                 } else if (ent.is<JsonObject>()) {
-                    eid = ent["entity"];
+                    eid   = ent["entity"];
+                    ename = ent["name"];
                 }
                 if (eid && !entity_already_added(count, eid)) {
                     strncpy(s_entities[count].entity_id, eid,
                             sizeof(s_entities[count].entity_id) - 1);
                     fill_entity_defaults(&s_entities[count]);
+                    set_custom_name(&s_entities[count], ename);
                     count++;
                 }
             }
@@ -157,9 +171,11 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
     filter["result"]["views"][0]["path"]                 = true;
     filter["result"]["views"][0]["cards"][0]["entity"]   = true;
     filter["result"]["views"][0]["cards"][0]["entities"] = true;
+    filter["result"]["views"][0]["cards"][0]["name"]     = true;
     /* Sections-dashboard (HA 2024+) */
     filter["result"]["views"][0]["sections"][0]["cards"][0]["entity"]   = true;
     filter["result"]["views"][0]["sections"][0]["cards"][0]["entities"] = true;
+    filter["result"]["views"][0]["sections"][0]["cards"][0]["name"]     = true;
 
     JsonDocument doc;
     DeserializationError err = deserializeJson(
@@ -186,12 +202,22 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
         /* Parseer views[] uit het dashboard-object */
         s_view_count = 0;
         JsonArray views = result["views"].as<JsonArray>();
+        ESP_LOGI(TAG, "Antwoord: %d bytes, views-array met %d element(en)",
+                 len, (int)views.size());
         for (JsonObject view : views) {
             if (s_view_count >= MAX_VIEWS) break;
             const char *title = view["title"];
             const char *path  = view["path"];
             if (!title) title = "(zonder titel)";
-            if (!path)  path  = "";
+            /* Views zonder pad (URL-veld leeg in HA) krijgen een synthetisch
+               pad "#<index>" zodat ze toch kiesbaar en laadbaar zijn */
+            char synth[16];
+            if (!path || !path[0]) {
+                snprintf(synth, sizeof(synth), "#%d", s_view_count);
+                path = synth;
+            }
+            ESP_LOGI(TAG, "  view %d: '%s' (pad '%s')",
+                     s_view_count, title, path);
             strncpy(s_views[s_view_count].title, title,
                     sizeof(s_views[s_view_count].title) - 1);
             strncpy(s_views[s_view_count].path, path,
@@ -209,10 +235,17 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
         memset(&s_view_model, 0, sizeof(s_view_model));
 
         int entity_count = 0;
+        int view_idx     = 0;
         JsonArray views  = result["views"].as<JsonArray>();
         for (JsonObject view : views) {
+            /* Zelfde synthetische "#<index>"-paden als bij PENDING_VIEWS */
+            char synth[16];
             const char *path = view["path"];
-            if (!path) continue;
+            if (!path || !path[0]) {
+                snprintf(synth, sizeof(synth), "#%d", view_idx);
+                path = synth;
+            }
+            view_idx++;
 
             /* Vergelijk met geselecteerd pad (ook '' matcht eerste view) */
             bool match = (strcmp(path, s_pending_path) == 0) ||

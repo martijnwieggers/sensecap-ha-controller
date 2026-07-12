@@ -3,6 +3,7 @@
 #include "app_entities.h"
 #include "../ui/ui_manager.h"
 #include "../ui/ui_status.h"
+#include "../ui/ui_view_settings.h"
 #include "../ha/ha_client.h"
 #include "../platform/storage.h"
 #include "esp_log.h"
@@ -33,12 +34,21 @@ void app_events_handle(const ha_event_t *evt) {
                                    sizeof(saved_view), "");
             }
 
+            char single_view[64] = {0};
             if (saved_view[0]) {
                 /* Herverbinding: direct terug naar de actieve view (US-009).
                    Let op: geen get_views hiernaast — ha_lovelace heeft één
                    pending-slot, een tweede request zou de eerste overschrijven. */
                 app_state_set(STATE_ENTITIES_LOADING);
                 ha_client_load_view(saved_view);
+            } else if (view_settings_enabled_count(single_view,
+                                                   sizeof(single_view)) == 1) {
+                /* Precies één actieve view (US-012): keuzemenu overslaan */
+                ESP_LOGI(TAG, "Eén actieve view ('%s') — menu overgeslagen",
+                         single_view);
+                storage_set_string("selected_view", single_view);
+                app_state_set(STATE_ENTITIES_LOADING);
+                ha_client_load_view(single_view);
             } else {
                 app_state_set(STATE_VIEW_SELECT);
                 ui_manager_show_view_menu();
