@@ -24,15 +24,19 @@
 | US-013 | Scherm automatisch uit (energie)      | **Gerealiseerd** ✅ | Dropdown op statuspagina (Nooit/15s/30s/1m/2m/5m, standaard 30 s, NVS `screen_timeout`); backlight uit bij inactiviteit, wek-tik bedient geen widget |
 | US-014 | Helderheids-slider bij dimbare lampen | **Gerealiseerd** ✅ | WIDGET_LIGHT: schakelaar altijd, slider zichtbaar bij aan+dimbaar (`supported_color_modes`); twee-regel-layout, live show/hide bij state-updates |
 | US-015 | Keuzepopup climate-mode/ventilatie    | **Gerealiseerd** ✅ | Mode-/fan-knop opent modale popup (overlay + lijst, actuele stand gemarkeerd); alle criteria in simulator geverifieerd; geflasht op hardware |
+| US-016 | Verticaal per pagina bladeren + scrollbalk | **Niet gestart** 📋 | Story + implementatieplan goedgekeurd (zie userstories.md); veeg omhoog/omlaag = directe paginawissel, permanente scrollbalk rechts vervangt dots |
 
 ---
 
 ## Volgende stappen (prioriteits­volgorde)
 
-### 1. US-015 op hardware bevestigen (kort)
+### 1. US-016 implementeren — verticaal per pagina bladeren met scrollbalk
+Story + implementatieplan goedgekeurd (2026-07-12). Kern: in `ui_entities.c` reageert `gesture_cb` voortaan op verticale i.p.v. horizontale veegrichting (directe wissel blijft — geen animatie, dus geen judder); de dots-balk wordt vervangen door een permanent zichtbare verticale scrollbalk rechts (hoogte/positie = actieve pagina in totaal, bijwerken in `show_page()`); vrijgekomen `DOTS_H` gaat naar de rijhoogte. Slider-guard richtingsbewust maken: verticale veeg op een slider moet wisselen zonder HA-commando te sturen.
+
+### 2. US-015 op hardware bevestigen (kort)
 Firmware met de popup is geflasht en boot schoon (WiFi + HA verbonden, get_states OK). Nog even op het apparaat zelf tikken: mode-popup openen, stand kiezen, tik-buiten-sluit en veeg-op-popup controleren. In de simulator zijn alle zes acceptatiecriteria al end-to-end geverifieerd (geautomatiseerde kliktest via `tools/sim_drive.ps1`).
 
-### 2. Klein / opruimpunten
+### 3. Klein / opruimpunten
 - Font mist glyph U+2014 (—): LVGL-warnings in log; em-dash in UI-teksten vervangen of glyph toevoegen.
 - View-menu ververst de view-lijst niet automatisch na herverbinding via saved view (handmatige refresh-knop werkt).
 - Diagnose-logging in `ha_lovelace.cpp` (per-view titel/pad + payload-head bij ontbrekend result) kan t.z.t. omlaag naar LOGD.
@@ -121,6 +125,7 @@ firmware/src/
 
 | Datum      | Omschrijving                                                                             |
 |------------|------------------------------------------------------------------------------------------|
+| 2026-07-12 | US-016 geschreven en na review aangescherpt (story + acceptatiecriteria + implementatieplan, goedgekeurd): verticaal per pagina bladeren — veeg omhoog/omlaag = directe wissel van de hele zichtbare pagina (geen vrij scrollen, geen animatie i.v.m. judder RGB-panel), permanent zichtbare scrollbalk rechts vervangt de dots |
 | 2026-07-12 | US-015 keuzepopup: `hvac_mode_btn_cb`/`fan_mode_btn_cb` openen nu `mode_popup_open()` i.p.v. cyclen — modale overlay (kind van actief scherm, dimt achtergrond, `GESTURE_BUBBLE` uit zodat vegen geen pagina wisselt, `LV_EVENT_DELETE` reset de pointer bij schermwissel) met paneel: titel Mode/Ventilatie + scrollbare lijst, actuele stand in accentkleur; keuze → bestaande set_hvac_mode/set_fan_mode, popup dicht, label volgt state-update; tik buiten paneel sluit zonder wijziging; geen popup bij lege modeslijst. Alle 6 criteria in simulator geverifieerd met geautomatiseerde kliktest (`tools/sim_drive.ps1` nieuw: klik/veeg/screenshot naar SDL-venster); geflasht op hardware, bootlog schoon |
 | 2026-06-27 | Project gestart, user stories + technische verkenning + technisch ontwerp                |
 | 2026-06-27 | US-001 t/m US-002: WiFi-platform, setup-wizard (web-config), lovelace-parser, view-menu  |

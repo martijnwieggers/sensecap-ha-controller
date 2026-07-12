@@ -473,4 +473,36 @@ De twee cycle-knoppen op de climate-rij (US-011) blijven de actuele mode en vent
 - Volgorde: implementeren → simulator-test → flashen → hardware-test → status.md + criteria afvinken.
 ---
 
+## US-016 — Verticaal per pagina bladeren met scrollbalk (GEPLAND)
+
+**Als** gebruiker van het apparaat
+**wil ik** met een verticale veeg per hele pagina door de entiteiten van een view bladeren, met rechts een permanent zichtbare scrollbalk
+**zodat** de bediening aanvoelt als scrollen maar de wissel direct en vloeiend blijft, en ik altijd zie waar ik in de lijst ben.
+
+### Gedetailleerde beschrijving
+
+De horizontale veegrichting (US-003) wordt verticaal: een veeg omhoog toont direct de volgende pagina (alles wat nu zichtbaar is schuift in één keer door), een veeg omlaag de vorige. De wissel is — net als de huidige paginawissel — direct, zonder animatie (goedgekeurd 2026-07-12): dat houdt het vloeiend op het RGB-panel, dat geen vsync-gekoppelde animaties aankan. Er wordt dus niet vrij gescrold; de pagina-indeling (6 rijen per pagina) blijft bestaan.
+
+Rechts op het scherm staat een permanent zichtbare verticale scrollbalk die de positie toont: de hoogte van het balkje is evenredig met het aantal pagina's (⅓ bij drie pagina's) en de positie volgt de actieve pagina. De balk is een indicator, geen bedienelement. De dots-indicator onderaan vervalt, waardoor de rijen iets meer verticale ruimte krijgen. Sliders blijven horizontaal bedienbaar; een verticale veeg die op een slider begint wisselt gewoon van pagina en verstelt de slider niet. De keuzepopup (US-015) blijft werken; zolang die openstaat wisselt een veeg geen pagina.
+
+### Acceptatiecriteria
+
+- [ ] Een veeg omhoog toont direct de volgende pagina, een veeg omlaag de vorige; bij de eerste/laatste pagina gebeurt er niets.
+- [ ] De wissel is direct (geen schuif- of scrollanimatie).
+- [ ] Rechts is permanent een verticale scrollbalk zichtbaar waarvan hoogte en positie de actieve pagina in het totaal tonen; hij springt mee bij elke wissel.
+- [ ] Horizontaal vegen wisselt geen pagina meer en de dots-indicator is verwijderd.
+- [ ] Sliders blijven horizontaal bedienbaar; een verticale veeg die op een slider begint wisselt van pagina zonder de slider te verstellen of een commando naar HA te sturen.
+- [ ] De keuzepopup (US-015) werkt ongewijzigd; terwijl die openstaat wisselt een veeg geen pagina.
+
+### Technische opmerkingen (implementatieplan)
+
+- Kern in `ui_entities.c` en bewust minimaal: de gestapelde pagina-containers en `show_page()` blijven; alleen `gesture_cb` reageert voortaan op `LV_DIR_TOP` (volgende) en `LV_DIR_BOTTOM` (vorige) in plaats van links/rechts.
+- Scrollbalk vervangt de dots: smalle verticale balk (enkele px, accentkleur op donkere track) rechts over de hoogte van het paginagebied; hoogte = gebied/`page_count`, y-positie = index × die hoogte. Bijwerken in `show_page()` (zelfde plek waar nu `update_dots()` zit). Bij één pagina beslaat het balkje de volle hoogte.
+- De vrijgekomen `DOTS_H`-strook onderaan gaat naar de rijen (`ROW_H` wordt `(LV_VER_RES - TITLE_H) / 6`); de scrollbalk zweeft over de rijen heen (klein overlappend object, geen layoutruimte nodig).
+- Slider-guard in `gesture_cb` blijft, maar richtingsbewust: een verticale veeg die op een slider begint moet wél wisselen. Controleren dat de veeg geen `LV_EVENT_RELEASED` met (vrijwel ongewijzigde) sliderwaarde naar HA stuurt — zo nodig release onderdrukken als er een gesture actief was.
+- US-015-popup: overlay met `GESTURE_BUBBLE` uit werkt richtingsonafhankelijk — geen wijziging nodig.
+- HA-laag, widget-registry en `entities_build_pages()` blijven ongemoeid; `MAX_ENTITIES` (30) en 6 rijen per pagina blijven de grenzen.
+- Volgorde: implementeren → simulator-test (kliktest via `tools/sim_drive.ps1`, drag-actie bestaat al) → flashen → hardware-test → status.md + criteria afvinken.
+---
+
 *Gegenereerd op: 2026-06-27 | Status: concept*
