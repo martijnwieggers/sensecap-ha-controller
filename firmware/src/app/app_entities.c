@@ -2,6 +2,23 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Vervangt UTF-8 em-dash/en-dash (U+2014/U+2013) door '-': de ingebakken
+   Montserrat-font mist die glyphs en LVGL logt anders een warning per teken.
+   Toepassen op alle teksten die uit HA komen en op het scherm belanden. */
+void entities_sanitize_label(char *s) {
+    char *r = s, *w = s;
+    while (*r) {
+        if ((unsigned char)r[0] == 0xE2 && (unsigned char)r[1] == 0x80 &&
+            ((unsigned char)r[2] == 0x93 || (unsigned char)r[2] == 0x94)) {
+            *w++ = '-';
+            r += 3;
+        } else {
+            *w++ = *r++;
+        }
+    }
+    *w = '\0';
+}
+
 entity_domain_t entities_parse_domain(const char *entity_id) {
     if (strncmp(entity_id, "switch.",        7)  == 0) return DOMAIN_SWITCH;
     if (strncmp(entity_id, "light.",         6)  == 0) return DOMAIN_LIGHT;

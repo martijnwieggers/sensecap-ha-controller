@@ -215,6 +215,7 @@ void ui_entities_update(const ha_event_t *evt) {
     if (evt->friendly_name[0] && !e->name_custom) {
         strncpy(e->name, evt->friendly_name, sizeof(e->name) - 1);
         e->name[sizeof(e->name) - 1] = '\0';
+        entities_sanitize_label(e->name);
     }
 
     /* Climate (US-011) — alleen overnemen wat het event meelevert */

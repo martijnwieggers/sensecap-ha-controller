@@ -1,7 +1,7 @@
 # Status — SenseCap Indicator Home Assistant Controller
 
-**Laatste update:** 2026-07-12 (US-015 + US-016 op hardware bevestigd)
-**Fase:** Werkend product op hardware. US-015 (keuzepopup) en US-016 (verticaal per pagina bladeren + scrollbalk + rijmarges) zijn in de simulator op alle acceptatiecriteria getest én door de gebruiker op het apparaat bevestigd. Alles t/m commit b4c791a is gecommit; working tree schoon.
+**Laatste update:** 2026-07-12 (opruimpunten opgepakt)
+**Fase:** Werkend product op hardware; alle 16 user stories gerealiseerd en op het apparaat bevestigd. Opruimpunten afgerond: glyph-sanitizer, view-menu-verversing na herverbinding, diagnose-logging naar LOGD. Geen openstaand werk.
 
 ---
 
@@ -30,11 +30,13 @@
 
 ## Volgende stappen (prioriteits­volgorde)
 
-### 1. Klein / opruimpunten
-- Font mist glyph U+2014 (—): LVGL-warnings in log; em-dash in UI-teksten vervangen of glyph toevoegen.
-- View-menu ververst de view-lijst niet automatisch na herverbinding via saved view (handmatige refresh-knop werkt).
-- Diagnose-logging in `ha_lovelace.cpp` (per-view titel/pad + payload-head bij ontbrekend result) kan t.z.t. omlaag naar LOGD.
-- Overwegen: `#<index>`-paden voor views zonder URL zijn positie-gebonden; advies aan gebruiker was om views in HA een URL te geven.
+### 1. Geen openstaand werk
+Alle user stories zijn gerealiseerd en de opruimpunten zijn opgepakt (2026-07-12):
+- ✅ Glyph U+2014: teksten uit HA (view-titels, kaartnamen, friendly_names) worden gesanitized — em/en-dash → `-` (`entities_sanitize_label`).
+- ✅ View-menu na herverbinding: de view-lijst wordt nu uit élk lovelace-antwoord ververst (ook bij een entiteiten-request; de volledige lijst zit toch al in dat antwoord), met een `VIEWS_LOADED`-refresh.
+- ✅ Diagnose-logging `ha_lovelace.cpp`: per-view titel/pad, antwoordgrootte en payload-head staan nu op LOGD; de melding "Geen 'result'-object" blijft een warning.
+
+**Bekende beperking (bewuste keuze):** `#<index>`-paden voor views zonder URL zijn positie-gebonden — als de view-volgorde in HA wijzigt, wijst een opgeslagen `#<index>` naar een andere view. Advies: geef views in HA een URL.
 
 ### Naslag: opgeloste hardware/verbindingsproblemen (2026-07-12)
 - **HA-verbinding**: typefout in adres (`duckns`→`duckdns`) + ArduinoJson v7-valkuil (JsonVariant-tussenvariabele = losgekoppelde null-variant → leeg filter → alles weggefilterd). Fix: ketting-toewijzingen in ha_lovelace.cpp + ha_messages.cpp.
@@ -52,7 +54,8 @@ firmware/src/
 │                          scherm-timeout-timer (US-013, 1 s, leest NVS screen_timeout)
 ├── app/
 │   ├── app_state.c/h      toestandsmachine (STATE_BOOT … STATE_DISCONNECTED)
-│   ├── app_entities.c/h   entity_t (incl. dimmable/name_custom), widget-selectie, build_pages
+│   ├── app_entities.c/h   entity_t (incl. dimmable/name_custom), widget-selectie, build_pages,
+│   │                      entities_sanitize_label (em/en-dash → '-' voor fontglyphs)
 │   └── app_events.c/h     HA-event → UI-actie; 1-actieve-view = menu overslaan (US-012);
 │                          HA_EVT_AUTH_FAILED → statuspagina-melding
 ├── ha/
@@ -62,7 +65,8 @@ firmware/src/
 │                          JsonVariant-tussenvariabelen!), auth-flow, get_states,
 │                          friendly_name/supported_color_modes
 │   └── ha_lovelace.cpp/h  Lovelace-config → views + entiteiten; sections-dashboards;
-│                          kaartnamen (name:); synthetisch #<index>-pad bij views zonder URL
+│                          kaartnamen (name:); synthetisch #<index>-pad bij views zonder
+│                          URL; view-lijst ververst uit elk antwoord (menu actueel)
 ├── ui/
 │   ├── ui_manager.c/h     schermwisseling — directe wissel, GEEN animaties (judder RGB-panel)
 │   ├── ui_setup.c/h       setup-wizard 3 stappen (US-001); trim van geplakte invoer
@@ -121,6 +125,7 @@ firmware/src/
 
 | Datum      | Omschrijving                                                                             |
 |------------|------------------------------------------------------------------------------------------|
+| 2026-07-12 | Opruimpunten: (1) `entities_sanitize_label()` nieuw in app_entities — em/en-dash (U+2014/2013) uit HA-teksten → `-` (font mist die glyphs); toegepast op view-titels, kaartnamen (`set_custom_name`) en friendly_names. (2) View-lijst wordt uit élk lovelace-antwoord geparsed (`parse_view_list()`, ook bij entiteiten-request) + VIEWS_LOADED-event — view-menu is na herverbinding via saved view weer actueel. (3) Diagnose-logging ha_lovelace naar LOGD (per-view, antwoordgrootte, payload-head); "Geen result" blijft W. `#<index>`-beperking gedocumenteerd als bewuste keuze |
 | 2026-07-12 | US-015, US-016 en rijmarges door gebruiker op het apparaat getest — alles werkt goed |
 | 2026-07-12 | Rij-marges: 10 px horizontale padding op elke entiteitsrij (`pad_hor` in ui_entities.c) zodat tekst en widgets vrij blijven van de schermrand en de scrollbalk |
 | 2026-07-12 | US-016 verticaal bladeren: `gesture_cb` reageert op TOP/BOTTOM i.p.v. LEFT/RIGHT (directe wissel blijft); dots vervangen door permanente scrollbalk rechts (track + duimpje, hoogte = 1/page_count, springt mee in `show_page()`); `DOTS_H` naar rijhoogte (70→73 px). Ontdekt: de oude slider-guard was dode code (gesture-event landt altijd op het scherm) — nu `lv_indev_wait_release()` bij elke verwerkte veeg: ingedrukt widget krijgt PRESS_LOST i.p.v. RELEASED (geen HA-commando, geen onbedoelde toggle/klik); sliders herstellen waarde+label uit het model bij PRESS_LOST (knob verspringt bij indrukken). Bijvangst US-015: veeg op een popup-optie selecteerde die optie bij loslaten — overlay heeft nu dezelfde wait_release-afhandeling. Alle criteria in simulator geverifieerd; geflasht, bootlog schoon |

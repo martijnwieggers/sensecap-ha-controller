@@ -59,6 +59,7 @@ static void set_custom_name(entity_t *e, const char *name) {
     if (!name || !name[0]) return;
     strncpy(e->name, name, sizeof(e->name) - 1);
     e->name[sizeof(e->name) - 1] = '\0';
+    entities_sanitize_label(e->name);
     e->name_custom = true;
 }
 
@@ -155,6 +156,34 @@ static int extract_entities_from_view(JsonObject view) {
     return count;
 }
 
+/* Vult de view-lijst (s_views) uit views[]. Wordt bij élk lovelace-antwoord
+   aangeroepen — ook bij een entiteiten-request zit de volledige lijst in het
+   antwoord, zodat het view-menu na herverbinding via de opgeslagen view toch
+   actueel is (zonder extra get_views naast het ene pending-slot). */
+static void parse_view_list(JsonArray views) {
+    s_view_count = 0;
+    for (JsonObject view : views) {
+        if (s_view_count >= MAX_VIEWS) break;
+        const char *title = view["title"];
+        const char *path  = view["path"];
+        if (!title) title = "(zonder titel)";
+        /* Views zonder pad (URL-veld leeg in HA) krijgen een synthetisch
+           pad "#<index>" zodat ze toch kiesbaar en laadbaar zijn */
+        char synth[16];
+        if (!path || !path[0]) {
+            snprintf(synth, sizeof(synth), "#%d", s_view_count);
+            path = synth;
+        }
+        ESP_LOGD(TAG, "  view %d: '%s' (pad '%s')", s_view_count, title, path);
+        strncpy(s_views[s_view_count].title, title,
+                sizeof(s_views[s_view_count].title) - 1);
+        entities_sanitize_label(s_views[s_view_count].title);
+        strncpy(s_views[s_view_count].path, path,
+                sizeof(s_views[s_view_count].path) - 1);
+        s_view_count++;
+    }
+}
+
 /* ---- Verwerk result-bericht ---- */
 
 void ha_lovelace_handle_result(int id, const char *data, int len) {
@@ -190,45 +219,25 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
 
     JsonObject result = doc["result"];
     if (!result) {
-        /* Toon het begin van het ruwe antwoord: onderscheidt een
-           strategy-dashboard zonder opgeslagen config ("result":null),
-           een afwijkende structuur en een leeg gefilterd antwoord */
+        /* Kan wijzen op een strategy-dashboard zonder opgeslagen config
+           ("result":null), een afwijkende structuur of een leeg gefilterd
+           antwoord; payload-detail alleen op debug-niveau */
+        ESP_LOGW(TAG, "Geen 'result'-object in antwoord (id=%d)", id);
         int head = len < 200 ? len : 200;
-        ESP_LOGW(TAG, "Geen 'result'-object in antwoord (id=%d); "
-                 "begin payload: %.*s", id, head, data);
+        ESP_LOGD(TAG, "Begin payload: %.*s", head, data);
         return;
     }
 
-    if (s_pending == PENDING_VIEWS) {
-        /* Parseer views[] uit het dashboard-object */
-        s_view_count = 0;
-        JsonArray views = result["views"].as<JsonArray>();
-        ESP_LOGI(TAG, "Antwoord: %d bytes, views-array met %d element(en)",
-                 len, (int)views.size());
-        for (JsonObject view : views) {
-            if (s_view_count >= MAX_VIEWS) break;
-            const char *title = view["title"];
-            const char *path  = view["path"];
-            if (!title) title = "(zonder titel)";
-            /* Views zonder pad (URL-veld leeg in HA) krijgen een synthetisch
-               pad "#<index>" zodat ze toch kiesbaar en laadbaar zijn */
-            char synth[16];
-            if (!path || !path[0]) {
-                snprintf(synth, sizeof(synth), "#%d", s_view_count);
-                path = synth;
-            }
-            ESP_LOGI(TAG, "  view %d: '%s' (pad '%s')",
-                     s_view_count, title, path);
-            strncpy(s_views[s_view_count].title, title,
-                    sizeof(s_views[s_view_count].title) - 1);
-            strncpy(s_views[s_view_count].path, path,
-                    sizeof(s_views[s_view_count].path) - 1);
-            s_view_count++;
-        }
-        ESP_LOGI(TAG, "%d view(s) geladen", s_view_count);
+    /* View-lijst bij elk antwoord verversen (menu blijft actueel) */
+    JsonArray views = result["views"].as<JsonArray>();
+    ESP_LOGD(TAG, "Antwoord: %d bytes, views-array met %d element(en)",
+             len, (int)views.size());
+    parse_view_list(views);
+    ha_event_t views_evt = {.type = HA_EVT_VIEWS_LOADED};
+    xQueueSend(ha_event_queue, &views_evt, 0);
 
-        ha_event_t evt = {.type = HA_EVT_VIEWS_LOADED};
-        xQueueSend(ha_event_queue, &evt, 0);
+    if (s_pending == PENDING_VIEWS) {
+        ESP_LOGI(TAG, "%d view(s) geladen", s_view_count);
 
     } else if (s_pending == PENDING_ENTITIES) {
         /* Zoek de geselecteerde view en extraheer entiteiten */
@@ -237,7 +246,6 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
 
         int entity_count = 0;
         int view_idx     = 0;
-        JsonArray views  = result["views"].as<JsonArray>();
         for (JsonObject view : views) {
             /* Zelfde synthetische "#<index>"-paden als bij PENDING_VIEWS */
             char synth[16];
@@ -259,6 +267,7 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
                 strncpy(s_view_model.view_title, title,
                         sizeof(s_view_model.view_title) - 1);
                 s_view_model.view_title[sizeof(s_view_model.view_title) - 1] = '\0';
+                entities_sanitize_label(s_view_model.view_title);
             }
             strncpy(s_view_model.view_path, s_pending_path,
                     sizeof(s_view_model.view_path) - 1);

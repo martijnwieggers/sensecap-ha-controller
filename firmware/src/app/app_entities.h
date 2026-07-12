@@ -74,6 +74,7 @@ typedef struct {
     int   total_entities;
 } view_model_t;
 
+void            entities_sanitize_label(char *s);  /* em/en-dash → '-' (font) */
 entity_domain_t entities_parse_domain(const char *entity_id);
 widget_type_t   entities_resolve_widget(const entity_t *e);
 void            entities_build_pages(view_model_t *vm, entity_t *arr, int count);
