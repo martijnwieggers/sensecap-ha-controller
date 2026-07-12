@@ -19,6 +19,7 @@ typedef struct {
     lv_obj_t       *widget;    /* switch / slider / waarde-label */
     lv_obj_t       *val_lbl;   /* label naast slider, NULL indien n.v.t. */
     lv_obj_t       *name_lbl;  /* naam-label links (friendly_name-update) */
+    lv_obj_t       *slider;    /* light: helderheids-slider (US-014) */
     lv_obj_t       *mode_lbl;  /* climate: label in hvac-mode-knop */
     lv_obj_t       *fan_lbl;   /* climate: label in fan-knop */
 } widget_ref_t;
@@ -37,6 +38,7 @@ static void register_ref(const entity_t *e, lv_obj_t *widget,
     s_refs[s_ref_count].widget   = widget;
     s_refs[s_ref_count].val_lbl  = val_lbl;
     s_refs[s_ref_count].name_lbl = NULL;
+    s_refs[s_ref_count].slider   = NULL;
     s_refs[s_ref_count].mode_lbl = NULL;
     s_refs[s_ref_count].fan_lbl  = NULL;
     s_ref_count++;
@@ -64,7 +66,8 @@ static void register_climate_ref(const entity_t *e, lv_obj_t *slider,
 
 static widget_ref_t *find_ref_by_widget(lv_obj_t *widget) {
     for (int i = 0; i < s_ref_count; i++) {
-        if (s_refs[i].widget == widget) return &s_refs[i];
+        if (s_refs[i].widget == widget ||
+            s_refs[i].slider == widget) return &s_refs[i];
     }
     return NULL;
 }
@@ -147,6 +150,11 @@ void ui_widgets_render_row(lv_obj_t *row, entity_t *e) {
         ui_widgets_render_climate(row, e);
         return;
     }
+    /* Light: schakelaar + conditionele helderheids-slider (US-014) */
+    if (e->widget == WIDGET_LIGHT) {
+        ui_widgets_render_light(row, e);
+        return;
+    }
 
     /* Naam links */
     lv_obj_t *name_lbl = lv_label_create(row);
@@ -197,6 +205,65 @@ void ui_widgets_render_slider_brightness(lv_obj_t *parent, entity_t *e) {
     register_ref(e, slider, val_lbl);
     lv_obj_add_event_cb(slider, brightness_drag_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(slider, brightness_event_cb, LV_EVENT_RELEASED, e);
+}
+
+/* ---- Light: schakelaar + helderheids-slider bij aan+dimbaar (US-014) ---- */
+
+/* Slider alleen tonen als de lamp aan én dimbaar is; naam en schakelaar
+   verhuizen dan naar de bovenste regel (zelfde twee-regel-idee als climate) */
+static void light_apply_layout(widget_ref_t *ref, const entity_t *e) {
+    bool show_slider = e->dimmable && strcmp(e->state, "on") == 0;
+
+    if (show_slider) {
+        if (ref->name_lbl) lv_obj_align(ref->name_lbl, LV_ALIGN_TOP_LEFT, 8, 9);
+        lv_obj_align(ref->widget, LV_ALIGN_TOP_RIGHT, -8, 6);
+        lv_obj_clear_flag(ref->slider,  LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(ref->val_lbl, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        if (ref->name_lbl) lv_obj_align(ref->name_lbl, LV_ALIGN_LEFT_MID, 8, 0);
+        lv_obj_align(ref->widget, LV_ALIGN_RIGHT_MID, -8, 0);
+        lv_obj_add_flag(ref->slider,  LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ref->val_lbl, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void ui_widgets_render_light(lv_obj_t *row, entity_t *e) {
+    lv_obj_t *name_lbl = lv_label_create(row);
+    lv_label_set_text(name_lbl, e->name);
+    lv_label_set_long_mode(name_lbl, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(name_lbl, 240);
+    lv_obj_set_style_text_color(name_lbl, lv_color_hex(CLR_TEXT), 0);
+
+    lv_obj_t *sw = lv_switch_create(row);
+    lv_obj_set_style_bg_color(sw, lv_color_hex(CLR_INACTIVE), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sw, lv_color_hex(CLR_ACCENT), LV_PART_INDICATOR);
+    if (strcmp(e->state, "on") == 0) {
+        lv_obj_add_state(sw, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(sw, toggle_event_cb, LV_EVENT_VALUE_CHANGED, e);
+
+    int pct = e->brightness_pct >= 0.0f ? (int)e->brightness_pct : 0;
+
+    lv_obj_t *slider = lv_slider_create(row);
+    lv_obj_set_size(slider, 300, 10);
+    lv_obj_align(slider, LV_ALIGN_BOTTOM_LEFT, 12, -14);
+    lv_slider_set_range(slider, 0, 100);
+    lv_slider_set_value(slider, pct, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(CLR_ACCENT), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(CLR_ACCENT), LV_PART_KNOB);
+
+    lv_obj_t *val_lbl = lv_label_create(row);
+    set_brightness_label(val_lbl, pct);
+    lv_obj_set_style_text_color(val_lbl, lv_color_hex(CLR_SUBTEXT), 0);
+    lv_obj_align(val_lbl, LV_ALIGN_BOTTOM_RIGHT, -8, -10);
+
+    lv_obj_add_event_cb(slider, brightness_drag_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(slider, brightness_event_cb, LV_EVENT_RELEASED, e);
+
+    register_ref(e, sw, val_lbl);
+    s_refs[s_ref_count - 1].slider = slider;
+    register_name_label(e, name_lbl);
+    light_apply_layout(&s_refs[s_ref_count - 1], e);
 }
 
 /* ---- Climate: cycle-knoppen voor hvac-mode en fan-mode (US-011) ---- */
@@ -369,6 +436,23 @@ void ui_widgets_update(const entity_t *e) {
                 lv_slider_set_value(w, (int)e->brightness_pct, LV_ANIM_OFF);
                 if (lbl) set_brightness_label(lbl, (int)e->brightness_pct);
                 break;
+
+            case WIDGET_LIGHT: {
+                if (strcmp(e->state, "on") == 0) {
+                    lv_obj_add_state(w, LV_STATE_CHECKED);
+                } else {
+                    lv_obj_clear_state(w, LV_STATE_CHECKED);
+                }
+                lv_obj_t *sl = s_refs[i].slider;
+                if (sl && !lv_obj_has_state(sl, LV_STATE_PRESSED)) {
+                    int pct = e->brightness_pct >= 0.0f
+                              ? (int)e->brightness_pct : 0;
+                    lv_slider_set_value(sl, pct, LV_ANIM_OFF);
+                    if (lbl) set_brightness_label(lbl, pct);
+                }
+                light_apply_layout(&s_refs[i], e);
+                break;
+            }
 
             case WIDGET_CLIMATE: {
                 if (!lv_obj_has_state(w, LV_STATE_PRESSED)) {

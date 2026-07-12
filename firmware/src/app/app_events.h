@@ -23,6 +23,9 @@ typedef struct {
     char friendly_name[48];
     float brightness_pct;
     float temperature;
+    /* Dimbaarheid uit supported_color_modes (US-014):
+       0 = niet meegeleverd, 1 = dimbaar, 2 = niet dimbaar */
+    uint8_t dimmable;
     /* Climate (US-011). Lege string / count 0 = niet meegeleverd,
        bestaande waarde in entity_t blijft dan staan. */
     char fan_mode[MODE_STR_LEN];

@@ -23,8 +23,8 @@ widget_type_t entities_resolve_widget(const entity_t *e) {
         case DOMAIN_AUTOMATION:
             return WIDGET_TOGGLE;
         case DOMAIN_LIGHT:
-            return (e->brightness_pct >= 0.0f) ? WIDGET_SLIDER_BRIGHTNESS
-                                                : WIDGET_TOGGLE;
+            /* Schakelaar + slider-bij-aan-en-dimbaar in één widget (US-014) */
+            return WIDGET_LIGHT;
         case DOMAIN_CLIMATE:
             return WIDGET_CLIMATE;
         case DOMAIN_SCRIPT:

@@ -31,6 +31,7 @@ typedef enum {
 typedef enum {
     WIDGET_TOGGLE,
     WIDGET_SLIDER_BRIGHTNESS,
+    WIDGET_LIGHT,     /* schakelaar + helderheids-slider bij aan+dimbaar (US-014) */
     WIDGET_CLIMATE,   /* temperatuur-slider + hvac-mode- en fan-cycle-knoppen */
     WIDGET_LABEL,
     WIDGET_BUTTON,
@@ -46,6 +47,7 @@ typedef struct {
     entity_domain_t domain;
     widget_type_t   widget;
     float           brightness_pct;  /* 0–100, -1 = n.v.t. */
+    bool            dimmable;        /* light: supported_color_modes ≠ alleen onoff */
     float           temperature;     /* graden C, -1 = n.v.t. */
     float           temp_min;
     float           temp_max;

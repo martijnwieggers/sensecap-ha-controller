@@ -20,17 +20,19 @@ static struct {
     float brightness_pct;
     float temperature;
     char        fan_mode[16];   /* alleen climate (US-011) */
+    uint8_t     dimmable;       /* 0 = n.v.t., 1 = dimbaar, 2 = niet dimbaar (US-014) */
 } s_entities[] = {
-    {"switch.woonkamer_licht",  "Woonkamer licht",  "off",  -1,    -1,   ""     },
-    {"light.dimmer_bank",       "Dimmer bank",       "on",   72,    -1,   ""     },
-    {"climate.woonkamer",       "Thermostaat",       "heat", -1,    21.5, ""     },
-    {"climate.airco",           "Airco",             "cool", -1,    23.0, "auto" },
-    {"sensor.temperatuur",      "Buitentemperatuur", "14.2", -1,    -1,   ""     },
-    {"binary_sensor.deurbel",   "Deurbel",           "off",  -1,    -1,   ""     },
-    {"sensor.luchtvochtigheid", "Luchtvochtigheid",  "58",   -1,    -1,   ""     },
-    {"script.goedemorgen",      "Goedemorgen",       "off",  -1,    -1,   ""     },
-    {"scene.filmavond",         "Filmavond",         "off",  -1,    -1,   ""     },
-    {"button.bel_aan",          "Bel aan",           "off",  -1,    -1,   ""     },
+    {"switch.woonkamer_licht",  "Woonkamer licht",  "off",  -1,    -1,   "",     0},
+    {"light.dimmer_bank",       "Dimmer bank",       "on",   72,    -1,   "",     1},
+    {"light.gang",              "Ganglamp",          "off",  -1,    -1,   "",     2},
+    {"climate.woonkamer",       "Thermostaat",       "heat", -1,    21.5, "",     0},
+    {"climate.airco",           "Airco",             "cool", -1,    23.0, "auto", 0},
+    {"sensor.temperatuur",      "Buitentemperatuur", "14.2", -1,    -1,   "",     0},
+    {"binary_sensor.deurbel",   "Deurbel",           "off",  -1,    -1,   "",     0},
+    {"sensor.luchtvochtigheid", "Luchtvochtigheid",  "58",   -1,    -1,   "",     0},
+    {"script.goedemorgen",      "Goedemorgen",       "off",  -1,    -1,   "",     0},
+    {"scene.filmavond",         "Filmavond",         "off",  -1,    -1,   "",     0},
+    {"button.bel_aan",          "Bel aan",           "off",  -1,    -1,   "",     0},
 };
 #define N_ENTITIES (int)(sizeof(s_entities)/sizeof(s_entities[0]))
 
@@ -83,6 +85,7 @@ static void init_view_model(void) {
         strncpy(s_sim_entities[i].state, s_entities[i].state,
                 sizeof(s_sim_entities[i].state) - 1);
         s_sim_entities[i].brightness_pct = s_entities[i].brightness_pct;
+        s_sim_entities[i].dimmable       = (s_entities[i].dimmable == 1);
         s_sim_entities[i].temperature    = s_entities[i].temperature;
         s_sim_entities[i].temp_min       = 16.0f;
         s_sim_entities[i].temp_max       = 30.0f;
@@ -193,6 +196,7 @@ void ha_client_get_states(void) {
             .type           = HA_EVT_STATE_CHANGED,
             .brightness_pct = s_entities[i].brightness_pct,
             .temperature    = s_entities[i].temperature,
+            .dimmable       = s_entities[i].dimmable,
         };
         strncpy(evt.entity_id, s_entities[i].entity_id, sizeof(evt.entity_id)-1);
         strncpy(evt.state,     s_entities[i].state,     sizeof(evt.state)-1);
@@ -211,6 +215,7 @@ void ha_client_load_view(const char *view_path) {
             .type           = HA_EVT_STATE_CHANGED,
             .brightness_pct = s_entities[i].brightness_pct,
             .temperature    = s_entities[i].temperature,
+            .dimmable       = s_entities[i].dimmable,
         };
         strncpy(evt.entity_id, s_entities[i].entity_id, sizeof(evt.entity_id)-1);
         strncpy(evt.state,     s_entities[i].state,     sizeof(evt.state)-1);
@@ -322,6 +327,7 @@ void mock_ha_handle_cmd(const ha_cmd_t *cmd) {
             .type           = HA_EVT_STATE_CHANGED,
             .brightness_pct = s_entities[i].brightness_pct,
             .temperature    = s_entities[i].temperature,
+            .dimmable       = s_entities[i].dimmable,
         };
         strncpy(evt.entity_id, s_entities[i].entity_id, sizeof(evt.entity_id)-1);
         strncpy(evt.state,     s_entities[i].state,     sizeof(evt.state)-1);

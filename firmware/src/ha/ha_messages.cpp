@@ -65,6 +65,14 @@ static void parse_state_attrs(JsonVariant attrs, ha_event_t *evt) {
     if (attrs["brightness"].is<float>()) {
         evt->brightness_pct = attrs["brightness"].as<float>() / 2.55f;
     }
+    /* Dimbaar = supported_color_modes bevat meer dan alleen "onoff" (US-014) */
+    if (attrs["supported_color_modes"].is<JsonArray>()) {
+        evt->dimmable = 2;
+        for (JsonVariant m : attrs["supported_color_modes"].as<JsonArray>()) {
+            const char *s = m.as<const char *>();
+            if (s && strcmp(s, "onoff") != 0) { evt->dimmable = 1; break; }
+        }
+    }
     if (attrs["temperature"].is<float>()) {
         evt->temperature = attrs["temperature"].as<float>();
     }
@@ -191,6 +199,7 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
     filter["event"]["data"]["new_state"]["attributes"]["fan_mode"]    = true;
     filter["event"]["data"]["new_state"]["attributes"]["fan_modes"]   = true;
     filter["event"]["data"]["new_state"]["attributes"]["hvac_modes"]  = true;
+    filter["event"]["data"]["new_state"]["attributes"]["supported_color_modes"] = true;
     /* get_states-result is een array; lovelace-result (object) valt hierdoor
        automatisch buiten het filter */
     filter["result"][0]["entity_id"] = true;
@@ -201,6 +210,7 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
     filter["result"][0]["attributes"]["fan_mode"]    = true;
     filter["result"][0]["attributes"]["fan_modes"]   = true;
     filter["result"][0]["attributes"]["hvac_modes"]  = true;
+    filter["result"][0]["attributes"]["supported_color_modes"] = true;
 
     JsonDocument doc;
     DeserializationError err = deserializeJson(
