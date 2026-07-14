@@ -23,6 +23,8 @@ static const uint32_t BACKOFF_MS[] = {5000, 10000, 20000, 40000, 60000};
 static esp_websocket_client_handle_t s_client = NULL;
 static int s_msg_id = 1;
 
+extern QueueHandle_t ha_event_queue;
+
 /* Verzamelbuffer voor gefragmenteerde frames: grote HA-antwoorden
    (lovelace-config, get_states) komen binnen in chunks van ~1 KB */
 static char  *s_rx_buf = NULL;
@@ -80,7 +82,6 @@ static void websocket_event_handler(void *arg,
         case WEBSOCKET_EVENT_ERROR: {
             ESP_LOGW(TAG, "WebSocket verbroken");
             ha_event_t evt = {.type = HA_EVT_DISCONNECTED};
-            extern QueueHandle_t ha_event_queue;
             xQueueSend(ha_event_queue, &evt, pdMS_TO_TICKS(200));
             break;
         }
