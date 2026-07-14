@@ -6,10 +6,10 @@ on:
       - 'v*'
 
 permissions:
-  contents: write   # nodig voor het aanmaken van een release
+  contents: write
 
 jobs:
-  build:
+  build-firmware:
     runs-on: ubuntu-latest
 
     steps:
@@ -41,17 +41,57 @@ jobs:
         working-directory: firmware
         run: pio run -e sensecap_indicator
 
-      - name: Release aanmaken met binaries
+      - name: Binaries klaarzetten
+        run: |
+          mkdir binaries
+          cp firmware/.pio/build/sensecap_indicator/firmware.bin binaries/
+          cp firmware/.pio/build/sensecap_indicator/bootloader.bin binaries/
+          cp firmware/.pio/build/sensecap_indicator/partitions.bin binaries/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-binaries
+          path: binaries/
+
+  build-flasher:
+    runs-on: windows-latest
+    needs: build-firmware
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-binaries
+          path: binaries
+
+      - name: Flash-tool bouwen
+        run: |
+          pip install pyinstaller pyserial esptool
+          pyinstaller --onefile --name sensecap-flash `
+            --collect-data esptool `
+            --add-data "binaries/firmware.bin;." `
+            --add-data "binaries/bootloader.bin;." `
+            --add-data "binaries/partitions.bin;." `
+            flash_tool/flash.py
+
+      - name: Release aanmaken
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            firmware/.pio/build/sensecap_indicator/firmware.bin
-            firmware/.pio/build/sensecap_indicator/bootloader.bin
-            firmware/.pio/build/sensecap_indicator/partitions.bin
+            binaries/firmware.bin
+            binaries/bootloader.bin
+            binaries/partitions.bin
+            dist/sensecap-flash.exe
           body: |
-            ## Flashen
+            ## Flashen (eenvoudig)
 
-            Download de drie bestanden en flash met esptool:
+            Download `sensecap-flash.exe`, sluit de SenseCap Indicator aan via USB en dubbelklik.
+            Stop de seriële logger als die open staat.
+
+            ## Flashen (handmatig)
+
+            Download de drie `.bin`-bestanden en flash via de terminal:
 
             ```
             esptool.py --chip esp32s3 --port COM<n> --baud 460800 ^
@@ -62,4 +102,3 @@ jobs:
             ```
 
             Op Linux/Mac: vervang `COM<n>` door `/dev/ttyUSB0` of `/dev/tty.usbserial-*`.
-            Stop de seriële logger vóór het flashen.
