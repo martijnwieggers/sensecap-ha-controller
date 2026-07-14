@@ -81,7 +81,7 @@ static void websocket_event_handler(void *arg,
             ESP_LOGW(TAG, "WebSocket verbroken");
             ha_event_t evt = {.type = HA_EVT_DISCONNECTED};
             extern QueueHandle_t ha_event_queue;
-            xQueueSend(ha_event_queue, &evt, 0);
+            xQueueSend(ha_event_queue, &evt, pdMS_TO_TICKS(200));
             break;
         }
 
@@ -152,9 +152,18 @@ void ha_client_run(void) {
     storage_get_string("wifi_pass", pass, sizeof(pass), "");
 
     if (ssid[0]) {
-        app_state_set(STATE_WIFI_CONNECTING);
-        wifi_connect(ssid, pass);
-        wifi_wait_connected();   /* blokkeert tot IP verkregen */
+        int wifi_retry = 0;
+        for (;;) {
+            app_state_set(STATE_WIFI_CONNECTING);
+            wifi_connect(ssid, pass);
+            if (wifi_wait_connected(30000)) break;
+            ESP_LOGW(TAG, "WiFi niet verbonden na 30 s — retry over %u ms",
+                     (unsigned)BACKOFF_MS[wifi_retry]);
+            ha_event_t disc = {.type = HA_EVT_DISCONNECTED};
+            xQueueSend(ha_event_queue, &disc, pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(BACKOFF_MS[wifi_retry]));
+            if (wifi_retry < (int)BACKOFF_COUNT - 1) wifi_retry++;
+        }
         ESP_LOGI(TAG, "WiFi verbonden");
     } else {
         ESP_LOGE(TAG, "Geen WiFi-gegevens opgeslagen");

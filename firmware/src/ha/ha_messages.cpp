@@ -239,12 +239,12 @@ void ha_messages_handle(esp_websocket_client_handle_t client,
         ha_messages_get_states(client, msg_id);
         ha_messages_subscribe_events(client, msg_id);
         ha_event_t evt = {.type = HA_EVT_CONNECTED};
-        xQueueSend(ha_event_queue, &evt, 0);
+        xQueueSend(ha_event_queue, &evt, pdMS_TO_TICKS(200));
 
     } else if (strcmp(type, "auth_invalid") == 0) {
         ESP_LOGE(TAG, "HA authenticatie mislukt — controleer token");
         ha_event_t evt = {.type = HA_EVT_AUTH_FAILED};
-        xQueueSend(ha_event_queue, &evt, 0);
+        xQueueSend(ha_event_queue, &evt, pdMS_TO_TICKS(200));
 
     } else if (strcmp(type, "result") == 0) {
         int  id      = doc["id"].as<int>();

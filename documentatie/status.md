@@ -1,7 +1,7 @@
 # Status — SenseCap Indicator Home Assistant Controller
 
-**Laatste update:** 2026-07-12 (opruimpunten opgepakt)
-**Fase:** Werkend product op hardware; alle 16 user stories gerealiseerd en op het apparaat bevestigd. Opruimpunten afgerond: glyph-sanitizer, view-menu-verversing na herverbinding, diagnose-logging naar LOGD. Geen openstaand werk.
+**Laatste update:** 2026-07-12 (robuustheids-fixes na code review)
+**Fase:** Werkend product op hardware; alle 16 user stories gerealiseerd en op het apparaat bevestigd. Drie robuustheidsbugs opgelost na externe code review.
 
 ---
 
@@ -31,10 +31,13 @@
 ## Volgende stappen (prioriteits­volgorde)
 
 ### 1. Geen openstaand werk
-Alle user stories zijn gerealiseerd en de opruimpunten zijn opgepakt (2026-07-12):
+Alle user stories zijn gerealiseerd; drie robuustheidsbugs opgelost (2026-07-12):
 - ✅ Glyph U+2014: teksten uit HA (view-titels, kaartnamen, friendly_names) worden gesanitized — em/en-dash → `-` (`entities_sanitize_label`).
 - ✅ View-menu na herverbinding: de view-lijst wordt nu uit élk lovelace-antwoord ververst (ook bij een entiteiten-request; de volledige lijst zit toch al in dat antwoord), met een `VIEWS_LOADED`-refresh.
 - ✅ Diagnose-logging `ha_lovelace.cpp`: per-view titel/pad, antwoordgrootte en payload-head staan nu op LOGD; de melding "Geen 'result'-object" blijft een warning.
+- ✅ **WiFi-timeout** (`wifi.c/h`, `ha_client.c`): `wifi_wait_connected()` geeft nu na 30 s `false` terug i.p.v. onbeperkt te blokkeren; `ha_client` stuurt DISCONNECTED-event en herprobeert met backoff zodat het apparaat zichzelf herstelt bij fout wachtwoord of verdwenen netwerk.
+- ✅ **Queue drops** (`ha_client.c`, `ha_messages.cpp`, `ha_lovelace.cpp`): CONNECTED, AUTH_FAILED, DISCONNECTED, VIEWS_LOADED en ENTITIES_LOADED worden nu gestuurd met 200 ms timeout i.p.v. 0 — kritieke events gaan niet meer stil verloren bij een volle queue. STATE_CHANGED blijft op 0 (frequent; volgende update corrigeert een gemiste).
+- ✅ **strncpy-terminering** (`storage.c`): `storage_get_string()` gebruikt nu `len - 1` + expliciete null-terminator zodat een passend lange defaultwaarde nooit een niet-afgesloten buffer achterlaat.
 
 **Bekende beperking (bewuste keuze):** `#<index>`-paden voor views zonder URL zijn positie-gebonden — als de view-volgorde in HA wijzigt, wijst een opgeslagen `#<index>` naar een andere view. Advies: geef views in HA een URL.
 
@@ -125,6 +128,7 @@ firmware/src/
 
 | Datum      | Omschrijving                                                                             |
 |------------|------------------------------------------------------------------------------------------|
+| 2026-07-12 | Robuustheids-fixes na code review: (1) `wifi_wait_connected()` → timeout 30 s + bool retour; `ha_client` retry-loop met backoff + DISCONNECTED-event. (2) Kritieke queue-sends (CONNECTED, AUTH_FAILED, DISCONNECTED, VIEWS_LOADED, ENTITIES_LOADED) van timeout 0 naar 200 ms. (3) `storage_get_string()` strncpy `len-1` + expliciete `\0`. |
 | 2026-07-12 | Opruimpunten: (1) `entities_sanitize_label()` nieuw in app_entities — em/en-dash (U+2014/2013) uit HA-teksten → `-` (font mist die glyphs); toegepast op view-titels, kaartnamen (`set_custom_name`) en friendly_names. (2) View-lijst wordt uit élk lovelace-antwoord geparsed (`parse_view_list()`, ook bij entiteiten-request) + VIEWS_LOADED-event — view-menu is na herverbinding via saved view weer actueel. (3) Diagnose-logging ha_lovelace naar LOGD (per-view, antwoordgrootte, payload-head); "Geen result" blijft W. `#<index>`-beperking gedocumenteerd als bewuste keuze |
 | 2026-07-12 | US-015, US-016 en rijmarges door gebruiker op het apparaat getest — alles werkt goed |
 | 2026-07-12 | Rij-marges: 10 px horizontale padding op elke entiteitsrij (`pad_hor` in ui_entities.c) zodat tekst en widgets vrij blijven van de schermrand en de scrollbalk |

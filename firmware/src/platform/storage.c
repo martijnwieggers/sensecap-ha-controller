@@ -20,13 +20,18 @@ void storage_init(void) {
 
 void storage_get_string(const char *key, char *out, size_t len,
                         const char *default_val) {
+    if (len == 0) return;
     nvs_handle_t h;
+    const char *def = default_val ? default_val : "";
     if (nvs_open(NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
-        strncpy(out, default_val ? default_val : "", len);
+        strncpy(out, def, len - 1);
+        out[len - 1] = '\0';
         return;
     }
-    if (nvs_get_str(h, key, out, &len) != ESP_OK) {
-        strncpy(out, default_val ? default_val : "", len);
+    size_t buf_len = len;
+    if (nvs_get_str(h, key, out, &buf_len) != ESP_OK) {
+        strncpy(out, def, len - 1);
+        out[len - 1] = '\0';
     }
     nvs_close(h);
 }

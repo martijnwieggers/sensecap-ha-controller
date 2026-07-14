@@ -143,8 +143,11 @@ void wifi_get_ip(char *out, size_t len) {
     }
 }
 
-void wifi_wait_connected(void) {
-    xEventGroupWaitBits(s_eg, CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+bool wifi_wait_connected(uint32_t timeout_ms) {
+    TickType_t ticks = timeout_ms ? pdMS_TO_TICKS(timeout_ms) : portMAX_DELAY;
+    EventBits_t bits = xEventGroupWaitBits(s_eg, CONNECTED_BIT,
+                                           pdFALSE, pdTRUE, ticks);
+    return (bits & CONNECTED_BIT) != 0;
 }
 
 void wifi_set_low_latency(bool on) {

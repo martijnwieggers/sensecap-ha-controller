@@ -17,7 +17,9 @@ void wifi_connect(const char *ssid, const char *password);
 bool wifi_connect_done(void);
 bool wifi_is_connected(void);
 void wifi_get_ip(char *out, size_t len);
-void wifi_wait_connected(void);
+/* Wacht op IP-adres; geeft true terug als verbonden, false bij timeout.
+   timeout_ms = 0 wacht onbeperkt (legacy-gedrag, niet voor nieuwe code). */
+bool wifi_wait_connected(uint32_t timeout_ms);
 
 /* Lage-latentiemodus: zet de modem-slaapstand uit (WIFI_PS_NONE) zodat
    HA-commando's direct beantwoord worden. Gekoppeld aan de backlight:

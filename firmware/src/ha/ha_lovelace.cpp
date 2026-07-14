@@ -234,7 +234,7 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
              len, (int)views.size());
     parse_view_list(views);
     ha_event_t views_evt = {.type = HA_EVT_VIEWS_LOADED};
-    xQueueSend(ha_event_queue, &views_evt, 0);
+    xQueueSend(ha_event_queue, &views_evt, pdMS_TO_TICKS(200));
 
     if (s_pending == PENDING_VIEWS) {
         ESP_LOGI(TAG, "%d view(s) geladen", s_view_count);
@@ -283,7 +283,7 @@ void ha_lovelace_handle_result(int id, const char *data, int len) {
         entities_build_pages(&s_view_model, s_entities, entity_count);
 
         ha_event_t evt = {.type = HA_EVT_ENTITIES_LOADED};
-        xQueueSend(ha_event_queue, &evt, 0);
+        xQueueSend(ha_event_queue, &evt, pdMS_TO_TICKS(200));
     }
 
     s_pending    = PENDING_NONE;

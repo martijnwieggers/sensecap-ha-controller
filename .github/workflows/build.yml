@@ -1,0 +1,65 @@
+name: Build firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # nodig voor het aanmaken van een release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: PlatformIO installeren
+        run: pip install platformio
+
+      - name: Versie in platformio.ini zetten
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          sed -i 's/-DAPP_VERSION=\\"[^"]*\\"/-DAPP_VERSION=\\"'"${VERSION}"'\\"/' firmware/platformio.ini
+
+      - name: Firmware bouwen
+        working-directory: firmware
+        run: pio run -e sensecap_indicator
+
+      - name: Release aanmaken met binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            firmware/.pio/build/sensecap_indicator/firmware.bin
+            firmware/.pio/build/sensecap_indicator/bootloader.bin
+            firmware/.pio/build/sensecap_indicator/partitions.bin
+          body: |
+            ## Flashen
+
+            Download de drie bestanden en flash met esptool:
+
+            ```
+            esptool.py --chip esp32s3 --port COM<n> --baud 460800 ^
+              write_flash ^
+              0x0000  bootloader.bin ^
+              0x8000  partitions.bin ^
+              0x10000 firmware.bin
+            ```
+
+            Op Linux/Mac: vervang `COM<n>` door `/dev/ttyUSB0` of `/dev/tty.usbserial-*`.
+            Stop de seriële logger vóór het flashen.
